@@ -42,9 +42,9 @@ A beautiful, full-screen .NET WinForms GUI that serves as the command center ins
    - .NET 8 SDK.
    - A vanilla Windows 11 ISO located at `C:\projects\ntlight\input\windows.iso`.
 2. **Build**: Run `.\publish.ps1` in an elevated PowerShell window.
-3. **Deploy**: Mount the resulting `output\Sovereign_WinPE.iso` onto a Virtual Machine or flash it to a USB drive using Ventoy. 
+3. **Deploy**: Mount the resulting `output\Sovereign_WinPE.iso` onto a Virtual Machine or place it on a USB drive using Ventoy. *(Note: If using Ventoy, ensure that your vanilla Windows 11 ISO is also copied to the same Ventoy drive alongside `Sovereign_WinPE.iso`)*. 
 4. **Install**: Boot into WinPE, fill out the user credentials in the Sovereign GUI, select your target drive, and click **DEPLOY OS**. The system will install, seamlessly skip the OOBE setup, and drop you onto your fully debloated Sovereign OS desktop.
 
 > [!NOTE]
-> **Environment Lock Enabled**
-> The Sovereign Installer features an advanced context-aware execution lock. If you launch the GUI on your live main machine, the **Deployment** module (which wipes disks) is completely locked out. Conversely, if you boot from the WinPE ISO, the **Live Tweaker** module is disabled until Windows initializes. This makes the compiled `.exe` 100% safe to run natively on any host system.
+> **Live System Tweaking**
+> You can launch the Sovereign GUI on your live main machine to use the **Live Tweaker** module directly on a running Windows system. This makes the compiled `.exe` fully functional and 100% safe to run natively on any host system. However, it is highly recommended to run it from the WinPE environment to easily bypass TrustedInstaller protections.
