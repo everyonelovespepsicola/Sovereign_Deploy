@@ -68,13 +68,51 @@ namespace CustomShell
             AddAppButton("MBR-Deep Search", "Ultra-Fast MFT File Scanner", startY + 50, () => LaunchApp("MBR-Deep\\MBR-Deep-Classic.exe"));
             AddAppButton("AOMEI Partition", "Manage Disks", startY + 100, () => LaunchApp("AOMEI\\x64\\PartAssist.exe"));
             AddAppButton("Dism++", "System Deployment", startY + 150, () => LaunchApp("Dism++\\Dism++x64.exe"));
-            AddAppButton("Command Prompt", "Advanced CLI", startY + 200, () => LaunchApp("cmd.exe", true));
+            ContextMenuStrip sysToolsMenu = new ContextMenuStrip();
+            sysToolsMenu.Items.Add("Command Prompt", null, (s, e) => { this.Hide(); LaunchApp("cmd.exe", true); });
+            sysToolsMenu.Items.Add("Notepad", null, (s, e) => { this.Hide(); LaunchApp("notepad.exe", true); });
+            sysToolsMenu.Items.Add("Registry Editor", null, (s, e) => { this.Hide(); LaunchApp("regedit.exe", true); });
+            sysToolsMenu.Items.Add("Task Manager", null, (s, e) => { this.Hide(); LaunchApp("taskmgr.exe", true); });
+            sysToolsMenu.Items.Add("DiskPart", null, (s, e) => { this.Hide(); LaunchApp("cmd.exe", true, "/k diskpart"); });
+            sysToolsMenu.Items.Add("System Information", null, (s, e) => { this.Hide(); LaunchApp("msinfo32.exe", true); });
+            sysToolsMenu.Items.Add(new ToolStripSeparator());
+            sysToolsMenu.Items.Add("Magic Beans (Extract OEM Key)", null, (s, e) => { 
+                this.Hide(); 
+                try {
+                    Process p = new Process();
+                    p.StartInfo.FileName = "wmic";
+                    p.StartInfo.Arguments = "path softwarelicensingservice get OA3xOriginalProductKey";
+                    p.StartInfo.UseShellExecute = false;
+                    p.StartInfo.RedirectStandardOutput = true;
+                    p.StartInfo.CreateNoWindow = true;
+                    p.Start();
+                    string output = p.StandardOutput.ReadToEnd();
+                    p.WaitForExit();
+                    
+                    string[] lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    string key = lines.Length > 1 ? lines[1].Trim() : "";
+                    
+                    if (string.IsNullOrEmpty(key)) {
+                        MessageBox.Show("No embedded OEM Windows Key was found in the motherboard firmware.", "Magic Beans", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } else {
+                        Clipboard.SetText(key);
+                        MessageBox.Show($"Successfully extracted OEM Key from ACPI BIOS:\n\n{key}\n\n(This key has been automatically copied to your clipboard!)", "Magic Beans", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                } catch (Exception ex) {
+                    MessageBox.Show("Failed to extract OEM key: " + ex.Message, "Magic Beans Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            });
+
+            AddAppButton("System Tools", "Native Windows Utilities (Folder)", startY + 200, () => {
+                sysToolsMenu.Show(Cursor.Position);
+            }, false);
+
             AddAppButton("NTPWEdit", "Password Reset Tool", startY + 250, () => LaunchApp("NTPWEdit\\ntpwedit64.exe"));
-            AddAppButton("Reboot", "Restart WinPE", startY + 320, () => LaunchApp("wpeutil", true, "reboot"));
-            AddAppButton("Shutdown", "Power Off", startY + 370, () => LaunchApp("wpeutil", true, "shutdown"));
+            AddAppButton("Reboot", "Restart WinPE", startY + 300, () => LaunchApp("wpeutil", true, "reboot"));
+            AddAppButton("Shutdown", "Power Off", startY + 350, () => LaunchApp("wpeutil", true, "shutdown"));
         }
 
-        private void AddAppButton(string text, string subText, int yPos, Action onClick)
+        private void AddAppButton(string text, string subText, int yPos, Action onClick, bool autoHide = true)
         {
             Button btn = new Button();
             btn.Text = text + "\n" + subText;
@@ -89,7 +127,7 @@ namespace CustomShell
             btn.Cursor = Cursors.Hand;
             
             btn.Click += (s, e) => {
-                this.Hide();
+                if (autoHide) this.Hide();
                 onClick();
             };
 

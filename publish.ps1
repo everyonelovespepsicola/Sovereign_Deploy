@@ -17,7 +17,7 @@ Requires Windows ADK (for oscdimg and WinPE Optional Components) and .NET 8 SDK.
 $ErrorActionPreference = "Stop"
 
 # --- CONFIGURATION ---
-$WorkspacePath = "C:\projects\ntlight"
+$WorkspacePath = $PSScriptRoot
 $IsoPath = "$WorkspacePath\input\windows.iso"
 $MountDir = "$WorkspacePath\build\mount"
 $ExtractDir = "$WorkspacePath\build\extracted_iso"
@@ -56,13 +56,15 @@ if (Test-Path $ManifestPath) {
                 if (-not (Test-Path $TargetDir)) { New-Item -ItemType Directory -Path $TargetDir | Out-Null }
                 Expand-Archive -Path $OutFile -DestinationPath $TargetDir -Force
                 Remove-Item $OutFile -Force
-            } elseif ($tool.inno_extract) {
+            }
+            elseif ($tool.inno_extract) {
                 Write-Host "Extracting $($tool.name) using innoextract..."
                 if (-not (Test-Path $TargetDir)) { New-Item -ItemType Directory -Path $TargetDir | Out-Null }
                 $innoExe = "$FrozenToolsDir\InnoExtract\innoextract.exe"
                 if (-not (Test-Path $innoExe)) {
                     Write-Warning "innoextract.exe not found! Cannot extract $($tool.name)."
-                } else {
+                }
+                else {
                     & $innoExe $OutFile -d $TargetDir -q -T none 2>&1 | Out-Null
                     # Flatten the Inno Setup structure by moving 'app' contents to the root
                     if (Test-Path "$TargetDir\app") {
@@ -71,7 +73,8 @@ if (Test-Path $ManifestPath) {
                     }
                 }
                 Remove-Item $OutFile -Force
-            } else {
+            }
+            else {
                 if (-not (Test-Path $TargetDir)) { New-Item -ItemType Directory -Path $TargetDir | Out-Null }
                 # For non-extracted files, exe_name might contain subfolders if it's a deeply nested path, but here it's usually just the filename
                 # For safety, ensure destination parent directory exists if exe_name has path separators
@@ -138,19 +141,21 @@ Write-Host "Injecting WinPE Optional Components (NetFX, PowerShell, etc)..."
 if (Test-Path $AdkOcdir) {
     # Inject standard components required for PowerShell
     $ocs = @("WinPE-WMI.cab", "en-us\WinPE-WMI_en-us.cab", 
-             "WinPE-NetFX.cab", "en-us\WinPE-NetFX_en-us.cab",
-             "WinPE-Scripting.cab", "en-us\WinPE-Scripting_en-us.cab",
-             "WinPE-PowerShell.cab", "en-us\WinPE-PowerShell_en-us.cab")
+        "WinPE-NetFX.cab", "en-us\WinPE-NetFX_en-us.cab",
+        "WinPE-Scripting.cab", "en-us\WinPE-Scripting_en-us.cab",
+        "WinPE-PowerShell.cab", "en-us\WinPE-PowerShell_en-us.cab")
 
     foreach ($oc in $ocs) {
         $cabPath = Join-Path $AdkOcdir $oc
         if (Test-Path $cabPath) {
             dism.exe /Image:$MountDir /Add-Package /PackagePath:$cabPath
-        } else {
+        }
+        else {
             Write-Warning "Could not find ADK Optional Component: $cabPath"
         }
     }
-} else {
+}
+else {
     Write-Warning "Windows ADK WinPE Add-on is not installed on this machine (missing $AdkOcdir). Skipping WinPE Optional Component injection. WPF applications may not render correctly without WinPE-NetFX!"
 }
 
@@ -217,7 +222,7 @@ $unattendWinPe = @"
     </settings>
 </unattend>
 "@
-Set-Content -Path "C:\projects\ntlight\input\unattend.xml" -Value $unattendWinPe -Encoding Ascii -Force
+Set-Content -Path "$WorkspacePath\input\unattend.xml" -Value $unattendWinPe -Encoding Ascii -Force
 
 # Check for xorriso (downloaded via GitHub API)
 $xorriso = Join-Path $FrozenToolsDir "xorriso.exe"
@@ -233,18 +238,25 @@ if (Test-Path $xorriso) {
     Invoke-Expression "& `"$xorriso`" $xorrisoCommand"
     
     if ($LASTEXITCODE -eq 0) {
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        Write-Host "===========================================================" -ForegroundColor Green
         Write-Host "`n[+++] PIPELINE COMPLETE! Universal ISO created at: $FinalIsoPath" -ForegroundColor Green
-    } else {
+        Write-Host "[+++] COMPILE TIMESTAMP: $timestamp" -ForegroundColor Magenta
+        Write-Host "`n===========================================================" -ForegroundColor Green
+    }
+    else {
         Write-Warning "Xorriso encountered an error while packing the ISO."
     }
-} elseif (Test-Path $oscdimg) {
+}
+elseif (Test-Path $oscdimg) {
     Write-Host "Found oscdimg! Using ADK tool to pack ISO..."
     $etfsboot = "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\amd64\Oscdimg\etfsboot.com"
     $efisys = "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\amd64\Oscdimg\efisys.bin"
     
-    & $oscdimg -m -o -u2 -udfver102 -bootdata:2#p0,e,b"$etfsboot"#pEF,e,b"$efisys" "$IsoBuildDir" "$FinalIsoPath"
+    & $oscdimg -m -o -u2 -udfver102 -bootdata:2#p0, e, b"$etfsboot"#pEF, e, b"$efisys" "$IsoBuildDir" "$FinalIsoPath"
     
     Write-Host "`n[+++] PIPELINE COMPLETE! Universal ISO created at: $FinalIsoPath" -ForegroundColor Green
-} else {
+}
+else {
     Write-Warning "Neither xorriso.exe nor oscdimg.exe were found. Skipping ISO generation. You can manually copy iso_build\sources\boot.wim to Ventoy."
 }

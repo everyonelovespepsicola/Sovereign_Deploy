@@ -39,6 +39,7 @@ namespace CustomShell
         private TextBox passBox;
         private TextBox pcBox;
         private CheckBox builtinAdminBox;
+        private CheckBox bypassOobeBox;
 
         public InstallerForm(bool debloatMode = false)
         {
@@ -105,24 +106,58 @@ namespace CustomShell
             browseDriverBtn.Click += BrowseDriverBtn_Click;
             this.Controls.Add(browseDriverBtn);
 
+            if (isDebloatMode) {
+                bypassOobeBox = new CheckBox() { 
+                    Text = "New Preinstalled OOBE Bypass (use only if OOBE hasn't been setup)", 
+                    Location = new Point(50, 235), 
+                    AutoSize = true, 
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold), 
+                    ForeColor = Color.Orange 
+                };
+                this.Controls.Add(bypassOobeBox);
+            }
+
             // User Credentials
-            Label userLabel = new Label() { Text = "3. Create User Account:", Location = new Point(50, 265), AutoSize = true, Font = new Font("Segoe UI", 12), Visible = !isDebloatMode };
+            Label userLabel = new Label() { Text = isDebloatMode ? "Create User Account (OOBE Bypass):" : "3. Create User Account:", Location = new Point(50, 265), AutoSize = true, Font = new Font("Segoe UI", 12), Visible = true };
             this.Controls.Add(userLabel);
-            userBox = new TextBox() { Location = new Point(50, 290), Size = new Size(200, 30), Font = new Font("Segoe UI", 12), Text = "Admin", Visible = !isDebloatMode };
+            userBox = new TextBox() { Location = new Point(50, 290), Size = new Size(200, 30), Font = new Font("Segoe UI", 12), Text = "Admin", Visible = true };
             this.Controls.Add(userBox);
 
-            Label passLabel = new Label() { Text = "Password (Optional):", Location = new Point(260, 265), AutoSize = true, Font = new Font("Segoe UI", 12), Visible = !isDebloatMode };
+            Label passLabel = new Label() { Text = "Password (Optional):", Location = new Point(260, 265), AutoSize = true, Font = new Font("Segoe UI", 12), Visible = true };
             this.Controls.Add(passLabel);
-            passBox = new TextBox() { Location = new Point(260, 290), Size = new Size(200, 30), Font = new Font("Segoe UI", 12), Visible = !isDebloatMode };
+            passBox = new TextBox() { Location = new Point(260, 290), Size = new Size(200, 30), Font = new Font("Segoe UI", 12), Visible = true };
             this.Controls.Add(passBox);
 
-            Label pcLabel = new Label() { Text = "Computer Name:", Location = new Point(470, 265), AutoSize = true, Font = new Font("Segoe UI", 12), Visible = !isDebloatMode };
+            Label pcLabel = new Label() { Text = "Computer Name:", Location = new Point(470, 265), AutoSize = true, Font = new Font("Segoe UI", 12), Visible = true };
             this.Controls.Add(pcLabel);
-            pcBox = new TextBox() { Location = new Point(470, 290), Size = new Size(200, 30), Font = new Font("Segoe UI", 12), Text = "Sovereign-PC", Visible = !isDebloatMode };
+            pcBox = new TextBox() { Location = new Point(470, 290), Size = new Size(200, 30), Font = new Font("Segoe UI", 12), Text = "Sovereign-PC", Visible = true };
             this.Controls.Add(pcBox);
 
-            builtinAdminBox = new CheckBox() { Text = "Use Built-in Administrator Account", Location = new Point(50, 330), AutoSize = true, Font = new Font("Segoe UI", 10), ForeColor = Color.LightGray, Visible = !isDebloatMode };
+            builtinAdminBox = new CheckBox() { Text = "Use Built-in Administrator Account", Location = new Point(50, 330), AutoSize = true, Font = new Font("Segoe UI", 10), ForeColor = Color.LightGray, Visible = true };
+
+            if (isDebloatMode) {
+                userLabel.Enabled = false;
+                userBox.Enabled = false;
+                passLabel.Enabled = false;
+                passBox.Enabled = false;
+                pcLabel.Enabled = false;
+                pcBox.Enabled = false;
+                builtinAdminBox.Enabled = false;
+
+                bypassOobeBox.CheckedChanged += (s, ev) => {
+                    bool enabled = bypassOobeBox.Checked;
+                    userLabel.Enabled = enabled;
+                    userBox.Enabled = enabled && !builtinAdminBox.Checked;
+                    passLabel.Enabled = enabled && !builtinAdminBox.Checked;
+                    passBox.Enabled = enabled && !builtinAdminBox.Checked;
+                    pcLabel.Enabled = enabled;
+                    pcBox.Enabled = enabled;
+                    builtinAdminBox.Enabled = enabled;
+                };
+            }
+
             builtinAdminBox.CheckedChanged += (s, ev) => {
+                if (isDebloatMode && (bypassOobeBox == null || !bypassOobeBox.Checked)) return;
                 userBox.Enabled = !builtinAdminBox.Checked;
                 passBox.Enabled = !builtinAdminBox.Checked;
             };
@@ -275,7 +310,26 @@ namespace CustomShell
                 deployBtn.Enabled = false;
                 targetDriveComboBox.Enabled = false;
                 
-                await Task.Run(() => RunDeploymentPipeline("", "", "", "", "", "", false, 1));
+                string uname = "", pass = "", pc = "";
+                bool useBuiltInAccount = false;
+                bool injectUnattend = false;
+                
+                if (bypassOobeBox != null && bypassOobeBox.Checked) {
+                    uname = userBox.Text.Trim();
+                    pass = passBox.Text;
+                    pc = pcBox.Text.Trim();
+                    useBuiltInAccount = builtinAdminBox.Checked;
+                    injectUnattend = true;
+
+                    if (!useBuiltInAccount && string.IsNullOrEmpty(uname)) {
+                        MessageBox.Show("Username cannot be empty unless using the built-in Administrator.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        deployBtn.Enabled = true;
+                        targetDriveComboBox.Enabled = true;
+                        return;
+                    }
+                }
+                
+                await Task.Run(() => RunDeploymentPipeline("", "", "", uname, pass, pc, useBuiltInAccount, 1, injectUnattend));
                 
                 deployBtn.Enabled = true;
                 targetDriveComboBox.Enabled = true;
@@ -320,7 +374,7 @@ namespace CustomShell
                 editionIndex = int.Parse(editionCombo.SelectedItem.ToString().Split(' ')[1]);
             }
 
-            await Task.Run(() => RunDeploymentPipeline(diskIndex, mediaPath, driverPath, username, password, pcname, useBuiltIn, editionIndex));
+            await Task.Run(() => RunDeploymentPipeline(diskIndex, mediaPath, driverPath, username, password, pcname, useBuiltIn, editionIndex, true));
 
             deployBtn.Enabled = true;
             browseBtn.Enabled = true;
@@ -328,7 +382,7 @@ namespace CustomShell
             diskCombo.Enabled = true;
         }
 
-        private async Task RunDeploymentPipeline(string diskIndex, string mediaPath, string driverPath, string username, string password, string pcname, bool useBuiltIn, int editionIndex)
+        private async Task RunDeploymentPipeline(string diskIndex, string mediaPath, string driverPath, string username, string password, string pcname, bool useBuiltIn, int editionIndex, bool injectUnattend)
         {
             try
             {
@@ -775,7 +829,7 @@ exit";
                 }
 
                 // STEP 3.6: Native Unattend Inject
-                if (!isDebloatMode) {
+                if (injectUnattend) {
                     UpdateStatus("Generating Native Unattend.xml...");
 
                     string pantherDir = Path.Combine(targetDrive, @"Windows\Panther");
@@ -808,6 +862,19 @@ exit";
             </UserAccounts>";
                     }
 
+                    string passwordBlock = $@"
+                <Password>
+                    <Value>{autologonPass}</Value>
+                    <PlainText>true</PlainText>
+                </Password>";
+
+                    string autoLogonBlock = $@"
+            <AutoLogon>{passwordBlock}
+                <Enabled>true</Enabled>
+                <LogonCount>5</LogonCount>
+                <Username>{autologonUser}</Username>
+            </AutoLogon>";
+
                     string unattendXml = $@"<?xml version=""1.0"" encoding=""utf-8""?>
 <unattend xmlns=""urn:schemas-microsoft-com:unattend"" xmlns:wcm=""http://schemas.microsoft.com/WMIConfig/2002/State"">
     <settings pass=""specialize"">
@@ -817,15 +884,7 @@ exit";
     </settings>
     <settings pass=""oobeSystem"">
         <component name=""Microsoft-Windows-Shell-Setup"" processorArchitecture=""amd64"" publicKeyToken=""31bf3856ad364e35"" language=""neutral"" versionScope=""nonSxS"">{userAccountsBlock}
-            <AutoLogon>
-                <Password>
-                    <Value>{autologonPass}</Value>
-                    <PlainText>true</PlainText>
-                </Password>
-                <Enabled>true</Enabled>
-                <LogonCount>5</LogonCount>
-                <Username>{autologonUser}</Username>
-            </AutoLogon>
+{autoLogonBlock}
             <OOBE>
                 <HideEULAPage>true</HideEULAPage>
                 <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
@@ -838,10 +897,47 @@ exit";
 </unattend>";
                     File.WriteAllText(Path.Combine(pantherDir, "unattend.xml"), unattendXml);
 
+                    string setupScriptsDir = Path.Combine(targetDrive, @"Windows\Setup\Scripts");
+                    if (!Directory.Exists(setupScriptsDir)) Directory.CreateDirectory(setupScriptsDir);
+                    string sovereignUnlockPath = Path.Combine(setupScriptsDir, "SetupComplete.cmd");
+                    string sovereignUnlockCmd = "@echo off\r\n";
+                    if (useBuiltIn) {
+                        sovereignUnlockCmd += "net user Administrator /active:yes\r\n";
+                        sovereignUnlockCmd += $"net user Administrator \"{password}\"\r\n";
+                    } else {
+                        sovereignUnlockCmd += $"net user \"{username}\" \"{password}\" /add\r\n";
+                        sovereignUnlockCmd += $"net localgroup Administrators \"{username}\" /add\r\n";
+                    }
+                    sovereignUnlockCmd += "net user defaultuser0 /delete\r\n";
+                    sovereignUnlockCmd += "reg add \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v AutoAdminLogon /t REG_SZ /d 1 /f\r\n";
+                    sovereignUnlockCmd += $"reg add \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v DefaultUserName /t REG_SZ /d \"{autologonUser}\" /f\r\n";
+                    sovereignUnlockCmd += $"reg add \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v DefaultPassword /t REG_SZ /d \"{autologonPass}\" /f\r\n";
+                    
+                    File.WriteAllText(sovereignUnlockPath, sovereignUnlockCmd);
+
+                    if (isDebloatMode) {
+                        string sysprepPath = Path.Combine(setupScriptsDir, "SovereignSysprep.cmd");
+                        File.WriteAllText(sysprepPath, "%WINDIR%\\System32\\Sysprep\\Sysprep.exe /oobe /unattend:C:\\Windows\\Panther\\unattend.xml /reboot\r\n");
+                    }
+
                     string scriptPathReg = Path.Combine(Path.GetTempPath(), "reg_hijack.bat");
                     string scriptReg = $"reg load HKLM\\zSOFTWARE {targetDrive}Windows\\System32\\config\\SOFTWARE\r\n" +
                     "reg add HKLM\\zSOFTWARE\\Microsoft\\Windows\\CurrentVersion\\OOBE /v BypassNRO /t REG_DWORD /d 1 /f\r\n" +
-                    "reg unload HKLM\\zSOFTWARE\r\n";
+                    "reg add HKLM\\zSOFTWARE\\Microsoft\\Windows\\CurrentVersion\\OOBE /v SkipMachineOOBE /t REG_DWORD /d 1 /f\r\n" +
+                    "reg add HKLM\\zSOFTWARE\\Microsoft\\Windows\\CurrentVersion\\OOBE /v SkipUserOOBE /t REG_DWORD /d 1 /f\r\n" +
+                    "reg unload HKLM\\zSOFTWARE\r\n" +
+                    $"reg load HKLM\\zSYSTEM {targetDrive}Windows\\System32\\config\\SYSTEM\r\n" +
+                    "reg add HKLM\\zSYSTEM\\Setup /v SetupType /t REG_DWORD /d 1 /f\r\n";
+                    
+                    if (isDebloatMode) {
+                        scriptReg += "reg add HKLM\\zSYSTEM\\Setup /v CmdLine /t REG_SZ /d \"cmd.exe /c C:\\Windows\\Setup\\Scripts\\SovereignSysprep.cmd\" /f\r\n";
+                    } else {
+                        scriptReg += "reg add HKLM\\zSYSTEM\\Setup /v OOBEInProgress /t REG_DWORD /d 0 /f\r\n" +
+                                     "reg add HKLM\\zSYSTEM\\Setup /v SetupPhase /t REG_DWORD /d 0 /f\r\n" +
+                                     "reg add HKLM\\zSYSTEM\\Setup /v CmdLine /t REG_SZ /d \"oobe\\windeploy.exe\" /f\r\n";
+                    }
+                    
+                    scriptReg += "reg unload HKLM\\zSYSTEM\r\n";
                     File.WriteAllText(scriptPathReg, scriptReg);
 
                     Process preg = new Process();
@@ -861,26 +957,28 @@ exit";
                     preg.WaitForExit();
 
                     // STEP 4: BCDBOOT
-                    UpdateStatus("Writing UEFI Bootloader...");
-                    Log("Executing bcdboot...");
-                    Process bcd = new Process();
-                    bcd.StartInfo.FileName = "bcdboot.exe";
-                    bcd.StartInfo.Arguments = $@"{targetDrive}Windows /s S: /f UEFI";
-                    bcd.StartInfo.UseShellExecute = false;
-                    bcd.StartInfo.RedirectStandardOutput = true;
-                    bcd.StartInfo.RedirectStandardError = true;
-                    bcd.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
-                    bcd.StartInfo.CreateNoWindow = true;
-                    
-                    bcd.OutputDataReceived += (s, ev) => Log(ev.Data);
-                    bcd.ErrorDataReceived += (s, ev) => Log(ev.Data);
+                    if (!isDebloatMode) {
+                        UpdateStatus("Writing UEFI Bootloader...");
+                        Log("Executing bcdboot...");
+                        Process bcd = new Process();
+                        bcd.StartInfo.FileName = "bcdboot.exe";
+                        bcd.StartInfo.Arguments = $@"{targetDrive}Windows /s S: /f UEFI";
+                        bcd.StartInfo.UseShellExecute = false;
+                        bcd.StartInfo.RedirectStandardOutput = true;
+                        bcd.StartInfo.RedirectStandardError = true;
+                        bcd.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
+                        bcd.StartInfo.CreateNoWindow = true;
+                        
+                        bcd.OutputDataReceived += (s, ev) => Log(ev.Data);
+                        bcd.ErrorDataReceived += (s, ev) => Log(ev.Data);
 
-                    bcd.Start();
-                    bcd.BeginOutputReadLine();
-                    bcd.BeginErrorReadLine();
-                    bcd.WaitForExit();
+                        bcd.Start();
+                        bcd.BeginOutputReadLine();
+                        bcd.BeginErrorReadLine();
+                        bcd.WaitForExit();
 
-                    if (bcd.ExitCode != 0) throw new Exception("Bcdboot failed!");
+                        if (bcd.ExitCode != 0) throw new Exception("Bcdboot failed!");
+                    }
                 }
 
                 if (isDebloatMode) {
