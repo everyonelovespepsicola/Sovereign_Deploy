@@ -2,10 +2,6 @@
 
 Sovereign OS is a radically debloated, fully automated Windows 11 deployment ecosystem. It completely replaces the standard Windows Setup with a custom .NET 8 WinPE (Windows Preinstallation Environment) GUI, allowing for deep system-level tweaks, offline registry modifications, native unattended user creation, and hardcore debloating *before* the OS ever boots.
 
-> [!NOTE]
-> **Environment Lock Enabled**
-> The Sovereign Installer features an advanced context-aware execution lock. If you launch the GUI on your live main machine, the **Deployment** module (which wipes disks) is completely locked out. Conversely, if you boot from the WinPE ISO, the **Live Tweaker** module is disabled until Windows initializes. This makes the compiled `.exe` 100% safe to run natively on any host system.
-
 ---
 
 ## 📂 Workspace Structure
@@ -48,3 +44,7 @@ A beautiful, full-screen .NET WinForms GUI that serves as the command center ins
 2. **Build**: Run `.\publish.ps1` in an elevated PowerShell window.
 3. **Deploy**: Mount the resulting `output\Sovereign_WinPE.iso` onto a Virtual Machine or flash it to a USB drive using Ventoy. 
 4. **Install**: Boot into WinPE, fill out the user credentials in the Sovereign GUI, select your target drive, and click **DEPLOY OS**. The system will install, seamlessly skip the OOBE setup, and drop you onto your fully debloated Sovereign OS desktop.
+
+> [!NOTE]
+> **Environment Lock Enabled**
+> The Sovereign Installer features an advanced context-aware execution lock. If you launch the GUI on your live main machine, the **Deployment** module (which wipes disks) is completely locked out. Conversely, if you boot from the WinPE ISO, the **Live Tweaker** module is disabled until Windows initializes. This makes the compiled `.exe` 100% safe to run natively on any host system.
