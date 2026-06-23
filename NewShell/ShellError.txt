@@ -1,0 +1,7 @@
+Error in Window_Loaded:
+'-8' is not a valid value for property 'Height'.
+
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at System.Windows.DependencyObject.SetValue(DependencyProperty dp, Object value)
+   at CustomShell.TaskbarWindow.RegisterAppBar() in C:\Users\Administrator\Desktop\projects\NewShell\MainWindow.xaml.cs:line 116
+   at CustomShell.TaskbarWindow.Window_Loaded(Object sender, RoutedEventArgs e) in C:\Users\Administrator\Desktop\projects\NewShell\MainWindow.xaml.cs:line 77

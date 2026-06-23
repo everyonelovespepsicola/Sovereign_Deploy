@@ -1,0 +1,46 @@
+===========================================================================
+SOVEREIGN ISO: DISM MEMORY PATCH MANIFEST
+Project: Sovereign Windows Installer / Debloater
+Target Environment: WinPE (boot.wim)
+Objective: Global Override of "Permanent=True" Logic
+===========================================================================
+
+[1. TARGET PROCESSES]
+Primary_Process: dism.exe
+Service_Host:    DismHost.exe (Spawned dynamically from X:\Windows\Temp)
+Search_Context:  Active RAM
+
+[2. MODULE DEPENDENCIES]
+Logic_Gate_DLL:  wcp.dll (Windows Component Platform)
+Fallback_DLL:   cbscore.dll (Component Based Servicing)
+
+[3. LOGIC GATE SIGNATURE (AOB SCAN)]
+# This pattern identifies the assembly comparison for package attributes.
+# 85 05 = TEST EAX
+# 0F 85 = JNZ (Jump if Not Zero) - The "Permanent" block trigger.
+
+Pattern_Hex:    85 05 ?? ?? ?? ?? 0F 85 ?? ?? ?? ??
+Mask:           xx xx ?? ?? ?? ?? xx xx ?? ?? ?? ??
+
+[4. PATCH INSTRUCTIONS]
+# Replace the conditional jump (JNZ) with NOPs (No-Operation) to prevent
+# the CPU from ever reaching the 'Access Denied / Permanent' error branch.
+
+Original_OpCode: 0F 85 [4-Byte Relative Offset]
+Patch_OpCode:    90 90 90 90 90 90
+
+[5. EXECUTION PIPELINE]
+1. MONITOR: Loop until DismHost.exe process handle is acquired.
+2. SUSPEND: Freeze thread execution to prevent race conditions.
+3. SCAN:    Perform AOB Scan in wcp.dll memory space.
+4. PATCH:   Overwrite found JNZ offset with NOP sequence.
+5. RESUME:  Release process threads.
+6. COMMAND: Send /Remove-Package /PackageName:X to the patched process.
+
+[6. VERIFICATION]
+# The patch is successful if DISM returns 'The operation completed successfully'
+# for packages typically protected by the 'Permanent' flag (e.g., Edge, Search).
+
+State_Result:   Permanent = FALSE (Forced)
+Risk_Factor:    Zero-Footprint (Patch volatile; disappears on reboot)
+===========================================================================

@@ -1,0 +1,59 @@
+👑 The "Sovereign Dashboard" Manifest
+
+This document outlines the architecture for the Sovereign Dashboard, a tool designed for deep customization of Windows 11 images.
+
+## Phase 1: Image Interrogation (`install.wim`)
+This is the core subtraction phase where components are removed from the main OS image.
+
+1.  **Mount `install.wim`**: The tool mounts the primary Windows image (`\sources\install.wim`, index 1) to a local directory (`C:\Sovereign_Mount`).
+2.  **Scan Components**: It runs `Get-WindowsCapability`, `Get-WindowsOptionalFeature`, and `Get-AppxProvisionedPackage` against the mounted path to build a comprehensive list of removable items.
+3.  **Populate UI**: The list is displayed in the dashboard, grouped by category (Capabilities, Optional Features, Appx Packages), allowing the user to uncheck items for removal.
+4.  **Execute Subtraction**: Upon clicking "Build ISO," the tool iterates through the unchecked items and removes them using their corresponding `Remove-*` or `Disable-*` DISM cmdlets.
+5.  **Deep Scrubs & Policy Injection**: The tool performs physical file removals (Edge, Copilot, etc.) and injects offline registry policies directly into the `SOFTWARE`, `SYSTEM`, and `Default User` hives.
+
+## Phase 2: Custom Installer (`boot.wim`) - The `winpeshl.ini` Method
+This is the advanced, recommended method for taking full control of the installation process, bypassing the standard Microsoft Setup GUI entirely.
+
+1.  **The Target**: The boot environment image, `\sources\boot.wim` (index 2), is the target for modification.
+2.  **The Hook (`winpeshl.ini`)**: When WinPE starts, it looks for `C:\Windows\System32\winpeshl.ini`. If this file exists, WinPE executes the applications listed in it instead of the default `setup.exe`. We create this file and inject it into the `boot.wim`.
+3.  **The Smart Launcher & XAML UI**:
+    *   Instead of a simple batch script, we inject a dual-engine installer.
+    *   `SovereignSetup.cmd` runs first, testing the WinPE environment for PowerShell capabilities.
+    *   If PowerShell/WPF is present, it launches `SovereignSetup.ps1`, a beautiful, full-screen XAML application that queries WMI for disks and streams DISM progress visually.
+    *   If PowerShell is missing, it falls back to an interactive command-line installer.
+4.  **The Holy Trinity Execution**:
+    *   Both the UI and CLI installers execute diskpart, apply the customized `install.wim` using DISM, and write the UEFI bootloader via `bcdboot`, concluding with the `autounattend.xml` Panther injection.
+
+## Phase 3: The Hybrid Orchestration (Completed)
+This phase outlines the "hand-off" from our powerful offline WinPE environment to the live OS, ensuring a seamless, zero-touch experience while minimizing reliance on processes that run inside the live, "untrusted" environment.
+
+1.  **The Hand-off (WinPE -> `autounattend.xml`)**:
+    *   After the Custom Installer (Phase 2) has partitioned the drive and applied our modified `install.wim`, its final action is to generate and copy a minimal `autounattend.xml` file to the `W:\Windows\Panther` directory of the "dead drive".
+
+2.  **OOBE Automation (The Live Phase)**:
+    *   When the system reboots, Windows Setup detects the answer file and uses it to perform tasks that are notoriously difficult and brittle to script via offline registry hacking. We delegate only the most essential, timing-sensitive actions to `autounattend.xml`:
+    *   **User Provisioning**: Reliably creates the local user account, sets the password, and adds it to the Administrators group. This is the Microsoft-supported method for interacting with the SAM database.
+    *   **AutoLogon**: Skips the login screen and goes straight to the desktop.
+    *   **OOBE Skip**: Hides all "Welcome to Windows" screens, privacy questions, and Microsoft Account prompts.
+    *   **First Logon Commands**: Executes our policy enforcement scripts (`reg add...`) and the final `SovereignValidation.ps1` report *after* the user's desktop environment is fully loaded. This guarantees the validation scan is 100% accurate, as it runs last.
+
+This hybrid architecture provides complete autonomy and raw power during the offline phase while using the native, supported Windows mechanisms for the delicate final setup, resulting in a faster, more reliable, and fully controlled installation.
+
+## Phase 4: Provisioning & Polish (Active)
+This phase introduces advanced quality-of-life enhancements and zero-touch application/driver provisioning directly into the Custom Installer.
+
+1.  **Visual Progress (Completed)**:
+    *   The `SovereignSetup.ps1` XAML interface now fully encapsulates the DISM extraction process.
+    *   Utilizes a non-blocking UI thread `DoEvents()` loop to display a Marquee Progress Bar and streaming status labels, preventing the installer from dropping back to a clunky terminal.
+2.  **Zero-Touch Driver Injection (Completed)**:
+    *   A `Drivers` directory is generated at the ISO root. During the WinPE Custom Installer execution, DISM is dynamically invoked to recursively inject all `.inf` files directly into the offline OS drive (`W:\`) before Windows ever boots.
+3.  **Application Provisioning (Completed)**:
+    *   An `Apps` folder natively generates at the root of the ISO media. Any `.exe` or `.msi` placed here is copied to `W:\Windows\Setup\Apps` by the Custom Installer and systematically iterated over using silent install switches inside `SetupComplete.cmd`.
+
+## Phase 5: Deep System State Resolution (The Hit List)
+This phase introduces lightning-fast raw file system parsing to eliminate deeply embedded and dynamically hashed bloatware components.
+
+1.  **High-Speed Indexing**: Instead of relying solely on slow API calls, the tool generates a rapid, raw snapshot of the entire drive (e.g., `dir C:\ /s /b /a > CFileList.txt`).
+2.  **Target Resolution & Parsing**: The tool scans this raw index against a definitions dictionary of target bloatware. This resolves dynamic hashes, versions, and architectures for hidden payloads (e.g., obscure `.cat` files in `WinSxS` or specific `WindowsApps` folders).
+3.  **Privilege Escalation & Ownership**: Because targets reside in highly restricted directories, the tool executes brute-force ACL seizures (`takeown` and `icacls`) or token impersonation to wrest control from `TrustedInstaller` or `SYSTEM`.
+4.  **Surgical Extraction**: The identified bloatware components are physically ripped out "down to the core," tracking hardlinks and cleaning up the Component Based Servicing (CBS) registry hive to prevent Windows Update from resurrecting the ghost files.

@@ -1,0 +1,46 @@
+{
+  "tools": [
+    {
+      "name": "Explorer++",
+      "download_url": "https://github.com/derceg/explorerplusplus/releases/download/version-1.4.0/explorerpp_x64.zip",
+      "asset_name": "explorerpp_x64.zip",
+      "extract": true,
+      "exe_name": "Explorer++.exe"
+    },
+    {
+      "name": "Xorriso",
+      "download_url": "https://github.com/PeyTy/xorriso-exe-for-windows/releases/download/1.5.2/xorriso.exe",
+      "asset_name": "xorriso.exe",
+      "extract": false,
+      "exe_name": "xorriso.exe"
+    },
+    {
+      "name": "Dism++",
+      "download_url": "https://github.com/Chuyu-Team/Dism-Multi-language/releases/download/v10.1.1002.1/Dism++10.1.1002.1.zip",
+      "asset_name": "Dism++10.1.1002.1.zip",
+      "extract": true,
+      "exe_name": "Dism++x64.exe"
+    },
+    {
+      "name": "NTPWEdit",
+      "download_url": "https://github.com/jmclaren7/ntpwedit/releases/download/0.7a/ntpwedit64.exe",
+      "asset_name": "ntpwedit64.exe",
+      "extract": false,
+      "exe_name": "ntpwedit64.exe"
+    },
+    {
+      "name": "InnoExtract",
+      "download_url": "https://github.com/dscharrer/innoextract/releases/download/1.9/innoextract-1.9-windows.zip",
+      "asset_name": "innoextract-1.9-windows.zip",
+      "extract": true,
+      "exe_name": "innoextract.exe"
+    },
+    {
+      "name": "WindowsUpdater",
+      "download_url": "https://raw.githubusercontent.com/everyonelovespepsicola/WindowsUpdate/refs/heads/main/WindowsUpdaterGUI.ps1",
+      "asset_name": "WindowsUpdaterGUI.ps1",
+      "extract": false,
+      "exe_name": "WindowsUpdaterGUI.ps1"
+    }
+  ]
+}

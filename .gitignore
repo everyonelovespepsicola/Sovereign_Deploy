@@ -1,0 +1,28 @@
+# C# and Visual Studio ignores
+[Bb]in/
+[Oo]bj/
+.vs/
+
+# ntlight Transient Build Directories
+build/*
+!build/.gitkeep
+frozen_tools/*
+!frozen_tools/.gitkeep
+
+# ntlight Massive Binary Files & ISOs
+input/*
+!input/.gitkeep
+output/*
+!output/.gitkeep
+iso_build/*
+extracted_iso/*
+Sovereign_ISORoot/*
+Sovereign_Mount/*
+Sovereign_BootMount/*
+mount/*
+
+# Old backups and untracked scrap files
+bak/
+
+# Logs
+*.log

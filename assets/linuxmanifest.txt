@@ -1,0 +1,144 @@
+To build the Ultimate WinISO Factory in Rust, you need a manifest that bridges the gap between high-level GUI "Profile" selection and low-level Linux/Windows cross-compatibility.
+
+Since you're targeting an Arch Linux host to build Sovereign Windows images for your Brother (Gaming/3090) and Mother (Simplified/Safe), your manifest needs to define the "Surgical Strikes" for each.
+
+The Sovereign Factory Manifest (manifest.toml)
+This file will act as the "Source of Truth" for your Rust tool, defining what drivers, ciphers, and "Anti-Demon" logic to apply.
+
+Ini, TOML
+[factory.metadata]
+version = "2026.05.10"
+author = "SisAdmin"
+project_name = "Sovereign-ISO-Factory"
+target_build = "10.0.26200" # Build 25xxx (25H2/26H1)
+
+[factory.tools]
+wimlib = "/usr/bin/wimlib-imagex"
+registry_editor = "/usr/bin/chntpw"
+iso_maker = "/usr/bin/mkisofs"
+
+# --- PROFILE: THE BROTHER (Gaming & Performance) ---
+[profile.brother]
+friendly_name = "High-Performance (3090 Optimized)"
+base_index = 6 # Windows Pro
+compression = "LZX"
+
+[profile.brother.features]
+xbox_mode = true          # Enable Console Shell / gamemode.dll
+gpu_priority = "High"     # MMCSS Scheduling tweaks
+ai_suppression = "Hard"   # Purge Recall, Copilot, Intelligence-AI
+tpm_bypass = true         # For older hardware testing
+
+[profile.brother.drivers]
+chipset = "AMD_X570_Latest"
+gpu = "NVIDIA_RTX_3090_GRD"
+network = "Realtek_2.5G_LAN"
+
+[profile.brother.secrets]
+layout = "Tironian-Notes" # The secret Papal Cipher
+font = "Cardo_MUFI"
+
+# --- PROFILE: THE MOTHER (Security & Stability) ---
+[profile.mom]
+friendly_name = "Sovereign Stable (Maintenance Free)"
+base_index = 1 # Windows Home/Pro
+compression = "XPRESS" # Faster install
+
+[profile.mom.features]
+auto_admin = true         # Built-in Admin with limited scope
+telemetry_nuke = true     # Absolute zero telemetry
+edge_replacement = "Brave" # Or similar clean browser
+simplified_ui = true      # Remove unnecessary context menu bloat
+
+[profile.mom.updates]
+disable_auto = true       # SisAdmin-only manual updates
+driver_protection = true  # Prevent Windows from overwriting stable drivers
+
+# --- THE "NUKE LIST" (Common to all Sovereign builds) ---
+[nuke_list]
+packages = [
+    "Microsoft-Windows-Intelligence-AI", # The "Demon" core
+    "Microsoft-Windows-Recall",
+    "Microsoft-Windows-Copilot",
+    "Microsoft-Edge",
+    "Microsoft-Windows-BingSearch"
+]
+How your Rust Tool Processes this Manifest
+Your Rust backend will parse this TOML and execute a 3-Stage Pipeline:
+
+Stage 1: The "Surgical" Extraction
+Using the base_index from the manifest, your tool calls wimlib to extract only the necessary image.
+
+Why: This reduces a 6GB ISO to a ~3.8GB "Sovereign" base instantly.
+
+Stage 2: The Registry & File Injection
+The Rust tool iterates over the [profile.X.drivers] and [profile.X.secrets] sections.
+
+Registry: It uses the registry_editor path to modify the offline SOFTWARE and SYSTEM hives.
+
+Files: It copies the Tironian Fonts into the Windows\Fonts folder inside the WIM.
+
+Stage 3: The Unattended Pass
+Your tool generates a dynamic autounattend.xml based on the profile. For "Mom," it sets SkipMachineOOBE and SkipUserOOBE to true to ensure she never sees a "Sign in with Microsoft" screen.
+
+The "Ultimate" Security Layer: Tironian Secret Mapping
+Since you mentioned the "Papacy" and "secrets," you can add a specialized entry in your manifest for Encryption-by-Obfuscation:
+
+Ini, TOML
+[secret_engine]
+input_mask = "QWERTY"
+output_cipher = "Tironian_Shorthand"
+auto_map_vault = true # Automatically map the Rust Vault to secret keys
+Why this works for your "Limbo" Machine
+By defining this in a Manifest, you move away from "running scripts" to "enforcing state." If your current machine fails, you just take this manifest.toml and your Rust binary to any other Arch machine, and you can recreate your entire digital environment in minutes.
+
+To make this manifest functional in your Rust factory, you’ll want to use serde for the heavy lifting. This allows your "Ultimate Factory" to simply "swallow" the TOML file and turn it into typed logic.The Rust ImplementationAdd these to your Cargo.toml:Ini, TOML[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+The Engine Code (src/manifest_parser.rs)This structure mirrors your "Sovereign" logic, allowing you to toggle the Tironian Cipher or RTX 3090 optimizations via the GUI.Rustuse serde::Deserialize;
+use std::collections::HashMap;
+
+#[derive(Debug, Deserialize)]
+pub struct FactoryManifest {
+    pub factory: FactoryConfig,
+    pub profiles: HashMap<String, Profile>,
+    pub nuke_list: NukeList,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FactoryConfig {
+    pub target_build: String,
+    pub wimlib_path: String,
+    pub reg_editor_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Profile {
+    pub friendly_name: String,
+    pub base_index: i32,
+    pub features: Features,
+    pub drivers: Option<HashMap<String, String>>,
+    pub secrets: Option<SecretConfig>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Features {
+    pub xbox_mode: bool,
+    pub ai_suppression: String, // "Soft", "Hard", "Total"
+    pub tpm_bypass: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SecretConfig {
+    pub layout: String, // e.g., "Tironian-Notes"
+    pub font: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NukeList {
+    pub packages: Vec<String>,
+}
+
+// Example usage in main.rs:
+// let manifest: FactoryManifest = toml::from_str(&toml_content).unwrap();
+Detailed Build Strategy for the "Ultimate" Factory1. The "Surgical" Registry StrikerSince you're on Linux, your Rust tool will call chntpw to "hot-patch" the registry.The "Mom" Patch: Automatically sets the registry key HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\EnableLUA to ensure her system stays within the "Sovereign" safety guardrails.The "Xbox" Patch: Injects the MMCSS (Multimedia Class Scheduler) keys we discussed to ensure your RTX 3090 gets "High" priority for the game process and "Low" priority for background telemetry.2. The Tironian Cipher InjectionYour manifest includes a SecretConfig. When this is active, the factory does the following:Binary Injection: Copies your custom .klc (Keyboard Layout Creator) binary into Windows\System32.Font Payload: Moves the MUFI-compliant fonts into the WIM's font store.The Ghost Key: Replaces the standard "US English" entry in the registry with the "Papal Administrative" ID.3. The "Anti-Demon" ScraperThe NukeList in your manifest is the most important part for your 25xxx/26xxx ISO.Wildcard Execution: Your Rust tool will loop through the packages list and run wimlib-imagex update with a delete command for every folder matching those names.Why this is better than a script: This is Offline Servicing. The "Demons" are removed while the files are just bits on your Linux SSD. They never get a chance to "phone home" or initialize.Final Manifest Summary for your Brother & MomFeatureProfile: Brother (3090)Profile: Mom (Safe)Index6 (Pro)1 (Home/Pro)GPU PriorityEnabled (Xbox Mode)Default (Stable)Secret LayerTironian ScribesNone (Standard)AI StatusPurgedPurgedUpdatesManual (SisAdmin Control)Blocked (Stable Only)Next Steps for your "Ultimate" BuildPlace the Manifest in your project root.Point the Paths in the [factory.tools] section to your Arch Linux binaries (/usr/bin/wimlib-imagex, etc.).Run the Rust Build: Your GUI will read the TOML, populate the "Brother" and "Mom" buttons, and you’ll be one click away from the perfect ISO.
