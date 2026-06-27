@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-    Sovereign Dashboard - Main Entry Point
+    [DEPRECATED] Sovereign Dashboard - Main Entry Point
+    NOTE: This file is part of the old project/GUI and has been replaced by the WinPE Installer (NewShell/InstallerForm.cs).
 #>
 
 $ErrorActionPreference = 'Continue'
@@ -81,6 +82,7 @@ $BtnScanWim = $Window.FindName("BtnScanWim")
 $TxtUsername = $Window.FindName("TxtUsername")
 $TxtPassword = $Window.FindName("TxtPassword")
 $ChkBuiltInAdmin = $Window.FindName("ChkBuiltInAdmin")
+$CmbLanguage = $Window.FindName("CmbLanguage")
 $ChkToolRegionPolicy = $Window.FindName("ChkToolRegionPolicy")
 $ChkToolDisableUCPD = $Window.FindName("ChkToolDisableUCPD")
 $ChkToolBypassTPM = $Window.FindName("ChkToolBypassTPM")
@@ -596,8 +598,58 @@ $BtnScanWim.Add_Click({
 
                 if ($imageInfo) {
                     Write-Host "SOV_GREEN:Successfully read editions."
-                    $imageInfo | Select-Object ImageIndex, ImageName
-                    return
+                    
+                    $languages = @()
+                    $defaultLang = $null
+                    
+                    $pathToUse = $null
+                    if ($targetWim) { $pathToUse = $targetWim }
+                    elseif ($wimPath -match '\.(wim|esd)$') { $pathToUse = $wimPath }
+                    
+                    if ($pathToUse) {
+                        Write-Host "SOV_DARKGRAY:  -> Checking available languages..."
+                        $langInfo = & dism.exe /Get-WimInfo /WimFile:$pathToUse /Index:1 /English 2>&1
+                        
+                        $inLanguages = $false
+                        foreach ($line in $langInfo) {
+                            if ($inLanguages -and $line -match '^\S+.*:') {
+                                $inLanguages = $false
+                            }
+                            
+                            if ($line -match '^Languages?\s*:') {
+                                $inLanguages = $true
+                                if ($line -match '^Languages?\s*:\s*(.+)') {
+                                    $lang = $matches[1].Trim() -replace '\s*\(Default\).*', ''
+                                    if ($lang) { $languages += $lang }
+                                }
+                                continue
+                            }
+                            
+                            if ($inLanguages -and $line -match '^\s+([\w-]+)') {
+                                $lang = $matches[1]
+                                if ($lang -notin $languages) {
+                                    $languages += $lang
+                                }
+                                if ($line -match '\(Default\)') {
+                                    $defaultLang = $lang
+                                }
+                            }
+                            
+                            if ($line -match 'Default\s*:\s*([\w-]+)') {
+                                $defaultLang = $matches[1]
+                            }
+                        }
+                        
+                        if (-not $defaultLang -and $languages.Count -gt 0) {
+                            $defaultLang = $languages[0]
+                        }
+                    }
+
+                    return [PSCustomObject]@{
+                        Editions = @($imageInfo | Select-Object ImageIndex, ImageName)
+                        Languages = $languages
+                        DefaultLanguage = $defaultLang
+                    }
                 }
             }
             catch { Write-Host "SOV_RED:Error scanning WIM: $($_.Exception.Message)" }
@@ -611,10 +663,13 @@ $BtnScanWim.Add_Click({
         }
 
         if ($terminalResult) {
+            $editions = $terminalResult.Editions
+            if (-not $editions) { $editions = $terminalResult } # Fallback
+
             $CmbWimIndex.Items.Clear()
             $proIndex = -1
             $currentIndex = 0
-            foreach ($img in $terminalResult) {
+            foreach ($img in $editions) {
                 if ($img -and $img.ImageIndex) {
                     $CmbWimIndex.Items.Add("[$($img.ImageIndex)] $($img.ImageName)") | Out-Null
 
@@ -627,6 +682,22 @@ $BtnScanWim.Add_Click({
             }
             if ($CmbWimIndex.Items.Count -gt 0) {
                 if ($proIndex -ne -1) { $CmbWimIndex.SelectedIndex = $proIndex } else { $CmbWimIndex.SelectedIndex = 0 }
+            }
+
+            if ($terminalResult.Languages -and $terminalResult.Languages.Count -gt 0) {
+                $CmbLanguage.Items.Clear()
+                $langIndex = 0
+                $targetLangIndex = 0
+                foreach ($lang in $terminalResult.Languages) {
+                    $CmbLanguage.Items.Add($lang) | Out-Null
+                    if ($lang -eq $terminalResult.DefaultLanguage) {
+                        $targetLangIndex = $langIndex
+                    }
+                    $langIndex++
+                }
+                if ($CmbLanguage.Items.Count -gt 0) {
+                    $CmbLanguage.SelectedIndex = $targetLangIndex
+                }
             }
 
             Set-Glow $BtnMount
@@ -851,6 +922,15 @@ $BtnBuild.Add_Click({
             $applyRegionPolicy = if ($ChkToolRegionPolicy -and $ChkToolRegionPolicy.IsChecked) { $true } else { $false }
             $disableUCPD = if ($ChkToolDisableUCPD -and $ChkToolDisableUCPD.IsChecked) { $true } else { $false }
             $bypassTPM = if ($ChkToolBypassTPM -and $ChkToolBypassTPM.IsChecked) { $true } else { $false }
+            
+            $systemLanguage = "en-US"
+            if ($CmbLanguage.SelectedItem) {
+                $sel = $CmbLanguage.SelectedItem
+                $rawText = if ($sel -is [System.Windows.Controls.ComboBoxItem]) { $sel.Content } else { $sel.ToString() }
+                if ($rawText) {
+                    $systemLanguage = ($rawText -split ' ')[0]
+                }
+            }
 
             $wuMode = "Default"
             if ($OptWuSecurity -and $OptWuSecurity.IsChecked) { $wuMode = "Security" }
@@ -882,6 +962,7 @@ $BtnBuild.Add_Click({
                 Username           = $TxtUsername.Text
                 Password           = $TxtPassword.Text
                 UseBuiltInAdmin    = $useAdmin
+                SystemLanguage     = $systemLanguage
                 ApplyRegionPolicy  = $applyRegionPolicy
                 DisableUCPD        = $disableUCPD
                 BypassTPM          = $bypassTPM

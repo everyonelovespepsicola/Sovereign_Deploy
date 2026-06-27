@@ -185,6 +185,7 @@ function Invoke-SovereignBuild {
         [string]$Username = "SovereignAdmin",
         [string]$Password = "Password123",
         [bool]$UseBuiltInAdmin = $false,
+        [string]$SystemLanguage = "en-US",
         [bool]$ApplyRegionPolicy = $false,
         [bool]$DisableUCPD = $false,
         [bool]$BypassTPM = $false,
@@ -783,7 +784,7 @@ function Invoke-SovereignBuild {
     }
 
     if (Get-Command New-SovereignUnattend -ErrorAction SilentlyContinue) {
-        New-SovereignUnattend -OutputPath "$IsoRoot\autounattend.xml" -Username $Username -Password $Password -UseBuiltInAdmin $UseBuiltInAdmin -RemovedItems $ItemsToRemove -IsoRoot $IsoRoot -ApplyRegionPolicy $ApplyRegionPolicy -DisableUCPD $DisableUCPD -BypassTPM $BypassTPM -WuMode $WuMode -ApplyQoLTweaks $ApplyQoLTweaks
+        New-SovereignUnattend -OutputPath "$IsoRoot\autounattend.xml" -Username $Username -Password $Password -UseBuiltInAdmin $UseBuiltInAdmin -SystemLanguage $SystemLanguage -RemovedItems $ItemsToRemove -IsoRoot $IsoRoot -ApplyRegionPolicy $ApplyRegionPolicy -DisableUCPD $DisableUCPD -BypassTPM $BypassTPM -WuMode $WuMode -ApplyQoLTweaks $ApplyQoLTweaks
     }
 
     # Assemble final Scrub List for WinPE chroot phase

@@ -1,0 +1,636 @@
+﻿diff --git a/src/scripts/SovereignDashboard.ps1 b/src/scripts/SovereignDashboard.ps1
+index 5e607ea..aa461bd 100644
+--- a/src/scripts/SovereignDashboard.ps1
++++ b/src/scripts/SovereignDashboard.ps1
+@@ -81,6 +81,7 @@ $BtnScanWim = $Window.FindName("BtnScanWim")
+ $TxtUsername = $Window.FindName("TxtUsername")
+ $TxtPassword = $Window.FindName("TxtPassword")
+ $ChkBuiltInAdmin = $Window.FindName("ChkBuiltInAdmin")
++$CmbLanguage = $Window.FindName("CmbLanguage")
+ $ChkToolRegionPolicy = $Window.FindName("ChkToolRegionPolicy")
+ $ChkToolDisableUCPD = $Window.FindName("ChkToolDisableUCPD")
+ $ChkToolBypassTPM = $Window.FindName("ChkToolBypassTPM")
+@@ -257,6 +258,11 @@ $ChkToolRegionPolicy.Add_Unchecked({
+         if ($OptNukeAll) { $OptNukeAll.IsEnabled = $false }
+     })
+ 
++$ChkBuiltInAdmin.Add_Checked({
++        # Explicitly ensure the password field stays enabled
++        if ($TxtPassword) { $TxtPassword.IsEnabled = $true }
++    })
++
+ $AppxAllowList = @(
+     "Microsoft.DesktopAppInstaller",
+     "Microsoft.WindowsTerminal",
+@@ -623,265 +629,360 @@ $BtnScanWim.Add_Click({
+                         $proIndex = $currentIndex
+                     }
+                     $currentIndex++
+-                }
+-            }
+-            if ($CmbWimIndex.Items.Count -gt 0) {
+-                if ($proIndex -ne -1) { $CmbWimIndex.SelectedIndex = $proIndex } else { $CmbWimIndex.SelectedIndex = 0 }
+-            }
+-
+-            Set-Glow $BtnMount
+-        }
+-    })
+-
+-$BtnMount.Add_Click({
+-        if (-not $Global:IsWimMounted) {
+-            if ([string]::IsNullOrWhiteSpace($TxtWimPath.Text) -or -not (Test-Path $TxtWimPath.Text) -or $TxtWimPath.Text -notmatch '(?i)\.iso$') {
+-                [System.Windows.MessageBox]::Show("Please provide a valid ISO path!", "Error", 0, 16) | Out-Null
+-                return
+-            }
+-
+-            $selectedIndex = 1
+-            if ($CmbWimIndex.SelectedItem) {
+-                if ($CmbWimIndex.SelectedItem.ToString() -match '\[(\d+)\]') {
+-                    $selectedIndex = [int]$matches[1]
+-                }
+-            }
+-
+-            $mountArgs = @{
+-                WimPath   = $TxtWimPath.Text
+-                ScriptDir = $PSScriptRoot
+-                MountDir  = Join-Path $PSScriptRoot "Sovereign_Mount"
+-                IsoRoot   = Join-Path $PSScriptRoot "Sovereign_ISORoot"
+-                Index     = $selectedIndex
+-            }
+-
+-            $terminalResult = Invoke-WithTerminal -Title "Sovereign Terminal - Mounting Image" -Arguments $mountArgs -ScriptBlock {
+-                param($argsHash)
+-                $wimPath = $argsHash.WimPath
+-                $isoRoot = $argsHash.IsoRoot
+-
+-                if ($wimPath -match '(?i)\.iso$') {
+-                    Write-Host "SOV_CYAN:ISO file detected. Attempting to extract contents..."
+-                    $MountResult = Mount-DiskImage -ImagePath $wimPath -PassThru
+-                    $DriveLetter = ($MountResult | Get-Volume).DriveLetter
+-
+-                    if (-not $DriveLetter) {
+-                        Start-Sleep -Seconds 2
+-                        $DriveLetter = (Get-DiskImage -ImagePath $wimPath | Get-Volume).DriveLetter
+-                    }
+-
+-                    if ($DriveLetter) {
+-                        Write-Host "SOV_CYAN:Copying files from $($DriveLetter):\ to $isoRoot (This might take a few minutes)..."
+-                        if (Test-Path $isoRoot) { cmd.exe /c "rmdir /s /q `"$isoRoot`"" | Out-Null }
+-                        New-Item -ItemType Directory -Path $isoRoot -Force | Out-Null
+-
+-                        Write-Host "SOV_DARKGRAY:Extracting files natively..."
+-                        & cmd.exe /c "xcopy /y /e /h /i `"$($DriveLetter):\*`" `"$isoRoot\`" >nul"
+-
+-                        Dismount-DiskImage -ImagePath $wimPath | Out-Null
+-
+-                        Write-Host "SOV_CYAN:Removing Read-Only attributes from extracted files..."
+-                        Get-ChildItem -Path $isoRoot -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.IsReadOnly } | ForEach-Object { $_.IsReadOnly = $false }
+-
+-                        if (Test-Path "$isoRoot\sources\install.wim") {
+-                            $wimPath = "$isoRoot\sources\install.wim"
+-                            Write-Host "SOV_GREEN:Extraction complete. Found install.wim."
+-                        }
+-                        elseif (Test-Path "$isoRoot\sources\install.esd") {
+-                            $wimPath = "$isoRoot\sources\install.esd"
+-                            Write-Host "SOV_YELLOW:Extraction complete. Found install.esd (Note: ESD files cannot be modified directly)."
++                    $inLanguages = $false
++                    foreach ($line in $langInfo) {
++                        if ($inLanguages -and $line -match '^\S+.*:') {
++                            $inLanguages = $false
+                         }
+-                        else {
+-                            Write-Host "SOV_RED:Could not find install.wim or install.esd in the extracted ISO!"
+-                            return $null
++                            
++                        if ($line -match '^Languages?\s*:') {
++                            $inLanguages = $true
++                            if ($line -match '^Languages?\s*:\s*(.+)') {
++                                $lang = $matches[1].Trim() -replace '\s*\(Default\).*', ''
++                                if ($lang) { $languages += $lang }
++                            }
++                            continue
+                         }
+-                    }
+-                    else {
+-                        Write-Host "SOV_RED:Could not assign a drive letter to the mounted ISO."
+-                        Dismount-DiskImage -ImagePath $wimPath -ErrorAction SilentlyContinue | Out-Null
+-                        return $null
+-                    }
+-                }
+-
+-                . (Join-Path $argsHash.ScriptDir "ImageInterrogator.ps1")
+-                $compList = Get-SovereignComponentList -WimPath $wimPath -Index $argsHash.Index -MountPath $argsHash.MountDir
+-                return @{ ExtractedWimPath = $wimPath; ComponentData = $compList }
+-            }
+-
+-            if ($null -ne $terminalResult -and $null -ne $terminalResult.ComponentData) {
+-                $Global:ExtractedWimPath = $terminalResult.ExtractedWimPath
+-
+-                $Global:ComponentData = New-Object System.Collections.ObjectModel.ObservableCollection[Object]
+-                foreach ($item in $terminalResult.ComponentData) {
+-                    $Global:ComponentData.Add($item)
+-                }
+-                $ComponentList.ItemsSource = $Global:ComponentData
+-
+-                $BtnMount.Content = "Unmount WIM"
+-                $BtnMount.Background = $BrushConverter.ConvertFromString("#2E8B57") # Green (Mounted)
+-                $Global:IsWimMounted = $true
+-
+-                $Global:CollectionView = [System.Windows.Data.CollectionViewSource]::GetDefaultView($ComponentList.ItemsSource)
+-                $Global:CollectionView.GroupDescriptions.Clear()
+-                $Global:CollectionView.GroupDescriptions.Add((New-Object System.Windows.Data.PropertyGroupDescription("Category")))
+-
+-                $Global:FilterText = $SearchBox.Text
+-                if (-not [string]::IsNullOrWhiteSpace($Global:FilterText)) {
+-                    $Global:CollectionView.Filter = [System.Predicate[System.Object]] {
+-                        param($item)
+-                        return ($item.Name -match "(?i)$Global:FilterText") -or
+-                        ($item.DisplayName -match "(?i)$Global:FilterText") -or
+-                        ($item.Description -match "(?i)$Global:FilterText")
+-                    }
+-                }
+-
+-                Set-Glow $BtnBuild
+-            }
+-        }
+-        else {
+-            Invoke-WithTerminal -Title "Sovereign Terminal - Unmounting WIM" -Arguments @{ ScriptDir = $PSScriptRoot } -ScriptBlock {
+-                param($argsHash)
+-                $activeMounts = Get-WindowsImage -Mounted -ErrorAction SilentlyContinue | Where-Object { $_.Path -match "Sovereign_Mount" }
+-                if ($activeMounts) {
+-                    Write-Host "SOV_YELLOW:Manually unmounting WIM(s)..."
+-                    foreach ($mount in $activeMounts) {
+-                        Write-Host "SOV_DARKGRAY:  -> Unmounting $($mount.Path)..."
+-                        try { Dismount-WindowsImage -Path $mount.Path -Discard -ErrorAction Stop | Out-Null } catch {
+-                            Write-Host "SOV_RED:Dismount failed for $($mount.Path): $($_.Exception.Message)"
++                            
++                        if ($inLanguages -and $line -match '^\s+([\w-]+)') {
++                            $lang = $matches[1]
++                            if ($lang -notin $languages) {
++                                $languages += $lang
++                            }
++                            if ($line -match '\(Default\)') {
++                                $defaultLang = $lang
++                            }
+                         }
+-                    }
+-                }
+-                else {
+-                    Write-Host "SOV_DARKGRAY:No active WIM mount found to unmount."
+-                }
+-                Write-Host "SOV_DARKGRAY:Attempting emergency DISM cleanup..."
+-                try { & dism.exe /Cleanup-Wim | Out-Null } catch {}
+-                try { Clear-WindowsCorruptMountPoint -ErrorAction SilentlyContinue | Out-Null } catch {}
+-
+-                $folders = @(
+-                    Join-Path $argsHash.ScriptDir "Sovereign_Mount",
+-                    Join-Path $argsHash.ScriptDir "Sovereign_BootMount"
+-                )
+-                foreach ($f in $folders) {
+-                    if (Test-Path $f) {
+-                        Write-Host "SOV_DARKGRAY:  -> Removing $f..."
+-                        cmd.exe /c "rmdir /s /q `"$f`"" | Out-Null
+-                    }
+-                }
+-            }
+-
+-            $Global:ComponentData = $null
+-            $ComponentList.ItemsSource = $null
+-
+-            $BtnMount.Content = "Mount ISO..."
+-            $BtnMount.Background = $BrushConverter.ConvertFromString("#C83232") # Red (Unmounted)
+-            $Global:IsWimMounted = $false
+-            $Global:ExtractedWimPath = $null
+-
+-            if (-not [string]::IsNullOrWhiteSpace($TxtWimPath.Text)) {
+-                Set-Glow $BtnScanWim
+-            }
+-            else {
+-                Set-Glow $BtnBrowseWim
+-            }
+-        }
+-    })
+-
+-$SearchBox.Add_TextChanged({
+-        if ($Global:CollectionView) {
+-            $Global:FilterText = $SearchBox.Text
+-            if ([string]::IsNullOrWhiteSpace($Global:FilterText)) {
+-                $Global:CollectionView.Filter = $null
+-            }
+-            else {
+-                $Global:CollectionView.Filter = [System.Predicate[System.Object]] {
+-                    param($item)
+-                    return ($item.Name -match "(?i)$Global:FilterText") -or
+-                    ($item.DisplayName -match "(?i)$Global:FilterText") -or
+-                    ($item.Description -match "(?i)$Global:FilterText")
+-                }
+-            }
+-        }
+-    })
+-
+-$BtnSelectAll.Add_Click({
+-        if ($Global:ComponentData) {
+-            $targetState = ($BtnSelectAll.Content -eq "Check All")
+-            foreach ($item in $Global:ComponentData) { $item.Action = $targetState }
+-            $BtnSelectAll.Content = if ($targetState) { "Uncheck All" } else { "Check All" }
+-            $BtnSelectAll.Background = if ($targetState) { $BrushConverter.ConvertFromString("#2E8B57") } else { $BrushConverter.ConvertFromString("#C83232") }
+-            $BtnSelectAll.Foreground = $BrushConverter.ConvertFromString("#FFFFFF")
+-            if ($Global:CollectionView) { $Global:CollectionView.Refresh() }
+-        }
+-    })
+-
+-$BtnPhysicalist.Add_Click({
+-        if ($Global:ComponentData) {
+-            $bloatKeywords = "Copilot|Recall|Xbox|Bing|Zune|GetHelp|SmartAppControl|Telemetry|Edge|InternetExplorer|Browser"
+-            $isActive = ($BtnPhysicalist.Tag -ne "Active")
+-
+-            foreach ($item in $Global:ComponentData) {
+-                if ($item.Name -match "(?i)($bloatKeywords)") { $item.Action = (-not $isActive) }
+-            }
+-
+-            if ($isActive) {
+-                $BtnPhysicalist.Tag = "Active"
+-                $BtnPhysicalist.Background = $BrushConverter.ConvertFromString("#2E8B57")
+-            }
+-            else {
+-                $BtnPhysicalist.Tag = "Inactive"
+-                $BtnPhysicalist.Background = $BrushConverter.ConvertFromString("#C83232")
+-            }
+-            $BtnPhysicalist.Foreground = $BrushConverter.ConvertFromString("#FFFFFF")
+-
+-            if ($Global:CollectionView) { $Global:CollectionView.Refresh() }
+-        }
+-    })
+-
+-$BtnBuild.Add_Click({
+-        if ($Global:ComponentData) {
+-            $selectedIndex = 1
+-            if ($CmbWimIndex.SelectedItem) {
+-                if ($CmbWimIndex.SelectedItem.ToString() -match '\[(\d+)\]') {
+-                    $selectedIndex = [int]$matches[1]
+-                }
+-            }
+-
+-            $useAdmin = if ($ChkBuiltInAdmin -and $ChkBuiltInAdmin.IsChecked) { $true } else { $false }
+-            $applyRegionPolicy = if ($ChkToolRegionPolicy -and $ChkToolRegionPolicy.IsChecked) { $true } else { $false }
+-            $disableUCPD = if ($ChkToolDisableUCPD -and $ChkToolDisableUCPD.IsChecked) { $true } else { $false }
+-            $bypassTPM = if ($ChkToolBypassTPM -and $ChkToolBypassTPM.IsChecked) { $true } else { $false }
+-
+-            $wuMode = "Default"
+-            if ($OptWuSecurity -and $OptWuSecurity.IsChecked) { $wuMode = "Security" }
+-            if ($OptWuDisable -and $OptWuDisable.IsChecked) { $wuMode = "Disable" }
+-
+-            $killCopilot = if ($ChkToolKillCopilot -and $ChkToolKillCopilot.IsChecked) { $true } else { $false }
+-            $killRecall = if ($ChkToolKillRecall -and $ChkToolKillRecall.IsChecked) { $true } else { $false }
+-            $killEdge = if ($ChkToolKillEdge -and $ChkToolKillEdge.IsChecked) { $true } else { $false }
+-            $killWebSearch = if ($ChkToolWebSearch -and $ChkToolWebSearch.IsChecked) { $true } else { $false }
+-            $killCampaigns = if ($ChkToolCampaigns -and $ChkToolCampaigns.IsChecked) { $true } else { $false }
+-            $killPromos = if ($ChkToolPromos -and $ChkToolPromos.IsChecked) { $true } else { $false }
+-            $killOneDrive = if ($ChkToolKillOneDrive -and $ChkToolKillOneDrive.IsChecked) { $true } else { $false }
+-            $killDefender = if ($ChkToolKillDefender -and $ChkToolKillDefender.IsChecked) { $true } else { $false }
+-            $useCustomInstaller = if ($ChkToolCustomInstaller -and $ChkToolCustomInstaller.IsChecked) { $true } else { $false }
+-            $applyQoLTweaks = if ($ChkToolQoLTweaks -and $ChkToolQoLTweaks.IsChecked) { $true } else { $false }
+-            $disableIndexing = if ($ChkToolDisableIndexing -and $ChkToolDisableIndexing.IsChecked) { $true } else { $false }
+-            $installOpenShell = if ($ChkToolInstallOpenShell -and $ChkToolInstallOpenShell.IsChecked) { $true } else { $false }
+-
+-            $ComponentArray = @()
+-            foreach ($c in $Global:ComponentData) { $ComponentArray += $c | Select-Object * }
+-
+-            $BuildArgs = @{
+-                ComponentData      = $ComponentArray
+-                ScriptDir          = $PSScriptRoot
+-                MountPath          = Join-Path $PSScriptRoot "Sovereign_Mount"
+-                IsoRoot            = Join-Path $PSScriptRoot "Sovereign_ISORoot"
++                            
++                        if ($line -match 'Default\s*:\s*([\w-]+)') {
++
++                            $BtnMount.Add_Click({
++                                    if (-not $Global:IsWimMounted) {
++                                        if ([string]::IsNullOrWhiteSpace($TxtWimPath.Text) -or -not (Test-Path $TxtWimPath.Text) -or $TxtWimPath.Text -notmatch '(?i)\.iso$') {
++                                            [System.Windows.MessageBox]::Show("Please provide a valid ISO path!", "Error", 0, 16) | Out-Null
++                                            return
++                                        }
++
++                                        $selectedIndex = 1
++                                        if ($CmbWimIndex.SelectedItem) {
++                                            if ($CmbWimIndex.SelectedItem.ToString() -match '\[(\d+)\]') {
++                                                $selectedIndex = [int]$matches[1]
++                                            }
++                                        }
++
++                                        $mountArgs = @{
++                                            WimPath   = $TxtWimPath.Text
++                                            ScriptDir = $PSScriptRoot
++                                            MountDir  = Join-Path $PSScriptRoot "Sovereign_Mount"
++                                            IsoRoot   = Join-Path $PSScriptRoot "Sovereign_ISORoot"
++                                            Index     = $selectedIndex
++                                        }
++
++                                        $terminalResult = Invoke-WithTerminal -Title "Sovereign Terminal - Mounting Image" -Arguments $mountArgs -ScriptBlock {
++                                            param($argsHash)
++                                            $wimPath = $argsHash.WimPath
++                                            $isoRoot = $argsHash.IsoRoot
++
++                                            if ($wimPath -match '(?i)\.iso$') {
++                                                Write-Host "SOV_CYAN:ISO file detected. Attempting to extract contents..."
++                                                $MountResult = Mount-DiskImage -ImagePath $wimPath -PassThru
++                                                $DriveLetter = ($MountResult | Get-Volume).DriveLetter
++
++                                                if (-not $DriveLetter) {
++                                                    Start-Sleep -Seconds 2
++                                                    $DriveLetter = (Get-DiskImage -ImagePath $wimPath | Get-Volume).DriveLetter
++                                                }
++
++                                                if ($DriveLetter) {
++                                                    Write-Host "SOV_CYAN:Copying files from $($DriveLetter):\ to $isoRoot (This might take a few minutes)..."
++                                                    if (Test-Path $isoRoot) { cmd.exe /c "rmdir /s /q `"$isoRoot`"" | Out-Null }
++                                                    New-Item -ItemType Directory -Path $isoRoot -Force | Out-Null
++
++                                                    Write-Host "SOV_DARKGRAY:Extracting files natively..."
++                                                    & cmd.exe /c "xcopy /y /e /h /i `"$($DriveLetter):\*`" `"$isoRoot\`" >nul"
++
++                                                    Dismount-DiskImage -ImagePath $wimPath | Out-Null
++
++                                                    Write-Host "SOV_CYAN:Removing Read-Only attributes from extracted files..."
++                                                    Get-ChildItem -Path $isoRoot -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.IsReadOnly } | ForEach-Object { $_.IsReadOnly = $false }
++
++                                                    if (Test-Path "$isoRoot\sources\install.wim") {
++                                                        $wimPath = "$isoRoot\sources\install.wim"
++                                                        Write-Host "SOV_GREEN:Extraction complete. Found install.wim."
++                                                    }
++                                                    elseif (Test-Path "$isoRoot\sources\install.esd") {
++                                                        $wimPath = "$isoRoot\sources\install.esd"
++                                                        Write-Host "SOV_YELLOW:Extraction complete. Found install.esd (Note: ESD files cannot be modified directly)."
++                                                    }
++                                                    else {
++                                                        Write-Host "SOV_RED:Could not find install.wim or install.esd in the extracted ISO!"
++                                                        return $null
++                                                    }
++                                                }
++                                                else {
++                                                    Write-Host "SOV_RED:Could not assign a drive letter to the mounted ISO."
++                                                    Dismount-DiskImage -ImagePath $wimPath -ErrorAction SilentlyContinue | Out-Null
++                                                    return $null
++                                                }
++                                            }
++
++                                            . (Join-Path $argsHash.ScriptDir "ImageInterrogator.ps1")
++                                            $compList = Get-SovereignComponentList -WimPath $wimPath -Index $argsHash.Index -MountPath $argsHash.MountDir
++                                            return @{ ExtractedWimPath = $wimPath; ComponentData = $compList }
++                                        }
++
++                                        if ($null -ne $terminalResult -and $null -ne $terminalResult.ComponentData) {
++                                            $Global:ExtractedWimPath = $terminalResult.ExtractedWimPath
++
++                                            $Global:ComponentData = New-Object System.Collections.ObjectModel.ObservableCollection[Object]
++                                            foreach ($item in $terminalResult.ComponentData) {
++                                                $Global:ComponentData.Add($item)
++                                            }
++                                            $ComponentList.ItemsSource = $Global:ComponentData
++
++                                            $BtnMount.Content = "Unmount WIM"
++                                            $BtnMount.Background = $BrushConverter.ConvertFromString("#2E8B57") # Green (Mounted)
++                                            $Global:IsWimMounted = $true
++
++                                            $Global:CollectionView = [System.Windows.Data.CollectionViewSource]::GetDefaultView($ComponentList.ItemsSource)
++                                            $Global:CollectionView.GroupDescriptions.Clear()
++                                            $Global:CollectionView.GroupDescriptions.Add((New-Object System.Windows.Data.PropertyGroupDescription("Category")))
++
++                                            $Global:FilterText = $SearchBox.Text
++                                            if (-not [string]::IsNullOrWhiteSpace($Global:FilterText)) {
++                                                $Global:CollectionView.Filter = [System.Predicate[System.Object]] {
++                                                    param($item)
++                                                    return ($item.Name -match "(?i)$Global:FilterText") -or
++                                                    ($item.DisplayName -match "(?i)$Global:FilterText") -or
++                                                    ($item.Description -match "(?i)$Global:FilterText")
++                                                }
++                                            }
++
++                                            Set-Glow $BtnBuild
++                                        }
++                                    }
++                                    else {
++                                        Invoke-WithTerminal -Title "Sovereign Terminal - Unmounting WIM" -Arguments @{ ScriptDir = $PSScriptRoot } -ScriptBlock {
++                                            param($argsHash)
++                                            $activeMounts = Get-WindowsImage -Mounted -ErrorAction SilentlyContinue | Where-Object { $_.Path -match "Sovereign_Mount" }
++                                            if ($activeMounts) {
++                                                Write-Host "SOV_YELLOW:Manually unmounting WIM(s)..."
++                                                foreach ($mount in $activeMounts) {
++                                                    Write-Host "SOV_DARKGRAY:  -> Unmounting $($mount.Path)..."
++                                                    try { Dismount-WindowsImage -Path $mount.Path -Discard -ErrorAction Stop | Out-Null } catch {
++                                                        Write-Host "SOV_RED:Dismount failed for $($mount.Path): $($_.Exception.Message)"
++                                                    }
++                                                }
++                                            }
++                                            else {
++                                                Write-Host "SOV_DARKGRAY:No active WIM mount found to unmount."
++                                            }
++                                            Write-Host "SOV_DARKGRAY:Attempting emergency DISM cleanup..."
++                                            try { & dism.exe /Cleanup-Wim | Out-Null } catch {}
++                                            try { Clear-WindowsCorruptMountPoint -ErrorAction SilentlyContinue | Out-Null } catch {}
++
++                                            $folders = @(
++                                                Join-Path $argsHash.ScriptDir "Sovereign_Mount",
++                                                Join-Path $argsHash.ScriptDir "Sovereign_BootMount"
++                                            )
++                                            foreach ($f in $folders) {
++                                                if (Test-Path $f) {
++                                                    Write-Host "SOV_DARKGRAY:  -> Removing $f..."
++                                                    cmd.exe /c "rmdir /s /q `"$f`"" | Out-Null
++                                                }
++                                            }
++                                        }
++
++                                        $Global:ComponentData = $null
++                                        $ComponentList.ItemsSource = $null
++
++                                        $BtnMount.Content = "Mount ISO..."
++                                        $BtnMount.Background = $BrushConverter.ConvertFromString("#C83232") # Red (Unmounted)
++                                        $Global:IsWimMounted = $false
++                                        $Global:ExtractedWimPath = $null
++
++                                        if (-not [string]::IsNullOrWhiteSpace($TxtWimPath.Text)) {
++                                            Set-Glow $BtnScanWim
++                                        }
++                                        else {
++                                            Set-Glow $BtnBrowseWim
++                                        }
++                                    }
++                                })
++
++                            $SearchBox.Add_TextChanged({
++                                    if ($Global:CollectionView) {
++                                        $Global:FilterText = $SearchBox.Text
++                                        if ([string]::IsNullOrWhiteSpace($Global:FilterText)) {
++                                            $Global:CollectionView.Filter = $null
++                                        }
++                                        else {
++                                            $Global:CollectionView.Filter = [System.Predicate[System.Object]] {
++                                                param($item)
++                                                return ($item.Name -match "(?i)$Global:FilterText") -or
++                                                ($item.DisplayName -match "(?i)$Global:FilterText") -or
++                                                ($item.Description -match "(?i)$Global:FilterText")
++                                            }
++                                        }
++                                    }
++                                })
++
++                            $BtnSelectAll.Add_Click({
++                                    if ($Global:ComponentData) {
++                                        $targetState = ($BtnSelectAll.Content -eq "Check All")
++                                        foreach ($item in $Global:ComponentData) { $item.Action = $targetState }
++                                        $BtnSelectAll.Content = if ($targetState) { "Uncheck All" } else { "Check All" }
++                                        $BtnSelectAll.Background = if ($targetState) { $BrushConverter.ConvertFromString("#2E8B57") } else { $BrushConverter.ConvertFromString("#C83232") }
++                                        $BtnSelectAll.Foreground = $BrushConverter.ConvertFromString("#FFFFFF")
++                                        if ($Global:CollectionView) { $Global:CollectionView.Refresh() }
++                                    }
++                                })
++
++                            $BtnPhysicalist.Add_Click({
++                                    if ($Global:ComponentData) {
++                                        $bloatKeywords = "Copilot|Recall|Xbox|Bing|Zune|GetHelp|SmartAppControl|Telemetry|Edge|InternetExplorer|Browser"
++                                        $isActive = ($BtnPhysicalist.Tag -ne "Active")
++
++                                        foreach ($item in $Global:ComponentData) {
++                                            if ($item.Name -match "(?i)($bloatKeywords)") { $item.Action = (-not $isActive) }
++                                        }
++
++                                        if ($isActive) {
++                                            $BtnPhysicalist.Tag = "Active"
++                                            $BtnPhysicalist.Background = $BrushConverter.ConvertFromString("#2E8B57")
++                                        }
++                                        else {
++                                            $BtnPhysicalist.Tag = "Inactive"
++                                            $BtnPhysicalist.Background = $BrushConverter.ConvertFromString("#C83232")
++                                        }
++                                        $BtnPhysicalist.Foreground = $BrushConverter.ConvertFromString("#FFFFFF")
++
++                                        if ($Global:CollectionView) { $Global:CollectionView.Refresh() }
++                                    }
++                                })
++
++                            $BtnBuild.Add_Click({
++                                    if ($Global:ComponentData) {
++                                        $selectedIndex = 1
++                                        if ($CmbWimIndex.SelectedItem) {
++                                            if ($CmbWimIndex.SelectedItem.ToString() -match '\[(\d+)\]') {
++                                                $selectedIndex = [int]$matches[1]
++                                            }
++                                        }
++
++                                        $useAdmin = if ($ChkBuiltInAdmin -and $ChkBuiltInAdmin.IsChecked) { $true } else { $false }
++                                        $applyRegionPolicy = if ($ChkToolRegionPolicy -and $ChkToolRegionPolicy.IsChecked) { $true } else { $false }
++                                        $disableUCPD = if ($ChkToolDisableUCPD -and $ChkToolDisableUCPD.IsChecked) { $true } else { $false }
++                                        $bypassTPM = if ($ChkToolBypassTPM -and $ChkToolBypassTPM.IsChecked) { $true } else { $false }
++            
++                                        $systemLanguage = "en-US"
++                                        if ($CmbLanguage.SelectedItem) {
++                                            $systemLanguage = ($CmbLanguage.SelectedItem.Content -split ' ')[0]
++                                        }
++
++
++                                        $wuMode = "Default"
++                                        if ($OptWuSecurity -and $OptWuSecurity.IsChecked) { $wuMode = "Security" }
++                                        if ($OptWuDisable -and $OptWuDisable.IsChecked) { $wuMode = "Disable" }
++
++                                        $killCopilot = if ($ChkToolKillCopilot -and $ChkToolKillCopilot.IsChecked) { $true } else { $false }
++                                        $killRecall = if ($ChkToolKillRecall -and $ChkToolKillRecall.IsChecked) { $true } else { $false }
++                                        $killEdge = if ($ChkToolKillEdge -and $ChkToolKillEdge.IsChecked) { $true } else { $false }
++                                        $killWebSearch = if ($ChkToolWebSearch -and $ChkToolWebSearch.IsChecked) { $true } else { $false }
++                                        $killCampaigns = if ($ChkToolCampaigns -and $ChkToolCampaigns.IsChecked) { $true } else { $false }
++                                        $killPromos = if ($ChkToolPromos -and $ChkToolPromos.IsChecked) { $true } else { $false }
++                                        $killOneDrive = if ($ChkToolKillOneDrive -and $ChkToolKillOneDrive.IsChecked) { $true } else { $false }
++                                        $killDefender = if ($ChkToolKillDefender -and $ChkToolKillDefender.IsChecked) { $true } else { $false }
++                                        $useCustomInstaller = if ($ChkToolCustomInstaller -and $ChkToolCustomInstaller.IsChecked) { $true } else { $false }
++                                        $applyQoLTweaks = if ($ChkToolQoLTweaks -and $ChkToolQoLTweaks.IsChecked) { $true } else { $false }
++                                        $disableIndexing = if ($ChkToolDisableIndexing -and $ChkToolDisableIndexing.IsChecked) { $true } else { $false }
++                                        $installOpenShell = if ($ChkToolInstallOpenShell -and $ChkToolInstallOpenShell.IsChecked) { $true } else { $false }
++
++                                        $ComponentArray = @()
++                                        foreach ($c in $Global:ComponentData) { $ComponentArray += $c | Select-Object * }
++
++                                        $BuildArgs = @{
++                                            ComponentData      = $ComponentArray
++                                            ScriptDir          = $PSScriptRoot
++                                            MountPath          = Join-Path $PSScriptRoot "Sovereign_Mount"
++                                            IsoRoot            = Join-Path $PSScriptRoot "Sovereign_ISORoot"
++                                            WimPath            = $Global:ExtractedWimPath
++                                            WimIndex           = $selectedIndex
++                                            Username           = $TxtUsername.Text
++                                            Password           = $TxtPassword.Text
++                                            UseBuiltInAdmin    = $useAdmin
++                                            SystemLanguage     = $systemLanguage
++                                            ApplyRegionPolicy  = $applyRegionPolicy
++                                            DisableUCPD        = $disableUCPD
++                                            BypassTPM          = $bypassTPM
++                                            WuMode             = $wuMode
++                                            KillCopilot        = $killCopilot
++                                            KillRecall         = $killRecall
++                                            KillEdge           = $killEdge
++                                            KillWebSearch      = $killWebSearch
++                                            KillCampaigns      = $killCampaigns
++                                            KillPromos         = $killPromos
++                                            KillOneDrive       = $killOneDrive
++                                            KillDefender       = $killDefender
++                                            UseCustomInstaller = $useCustomInstaller
++                                            ApplyQoLTweaks     = $applyQoLTweaks
++                                            DisableIndexing    = $disableIndexing
++                                            InstallOpenShell   = $installOpenShell
++                                        }
++
++                                        Invoke-WithTerminal -Title "Sovereign Terminal - Building ISO" -Arguments $BuildArgs -ShowKeepAlive -ScriptBlock {
++                                            param($argsHash)
++                                            $LogFile = Join-Path $argsHash.ScriptDir "SovereignBuild.log"
++                                            Start-Transcript -Path $LogFile -Force
++                                            $ProgressPreference = 'SilentlyContinue'
++                                            . (Join-Path $argsHash.ScriptDir "UnattendGenerator.ps1")
++                                            . (Join-Path $argsHash.ScriptDir "SurgicalLoader.ps1")
++                                            . (Join-Path $argsHash.ScriptDir "DeepStateResolution.ps1")
++                                            if (Test-Path (Join-Path $argsHash.ScriptDir "Functions.ps1")) { . (Join-Path $argsHash.ScriptDir "Functions.ps1") }
++
++                                            $obs = New-Object System.Collections.ObjectModel.ObservableCollection[Object]
++                                            foreach ($c in $argsHash.ComponentData) { $obs.Add($c) }
++                                            $argsHash.ComponentData = $obs
++
++                                            Invoke-SovereignBuild @argsHash
++
++                                            Stop-Transcript
++                                            Write-Host "SOV_GREEN:Build Complete! Your Sovereign ISO is ready."
++                                        }
++
++                                        if (-not $Global:KeepSessionAlive) {
++                                            $Global:ComponentData = $null
++                                            $ComponentList.ItemsSource = $null
++                                            $BtnMount.Content = "Mount ISO..."
++                                            $BtnMount.Background = $BrushConverter.ConvertFromString("#C83232")
++                                            $Global:IsWimMounted = $false
++                                            $Global:ExtractedWimPath = $null
++
++                                            $BtnBuild.IsEnabled = $false
++                                            $BtnBuild.Background = $BrushConverter.ConvertFromString("#007ACC")
++                                            $CmbWimIndex.BorderBrush = $BrushConverter.ConvertFromString("#2E8B57")
++                                            $CmbWimIndex.BorderThickness = 2
++
++                                            Set-Glow $BtnBrowseWim
++                                        }
++                                        else {
++                                            $BtnBuild.IsEnabled = $true
++                                            Set-Glow $BtnBuild
++                                        }
++                                    }
++                                    else {
++                                        [System.Windows.MessageBox]::Show("Please mount a WIM file first!", "Warning", 0, 48) | Out-Null
++                                    }
++                                })
++
++                            # 5. Launch the Dashboard
++                            $Window.ShowDialog() | Out-Null
+                 WimPath            = $Global:ExtractedWimPath
+                 WimIndex           = $selectedIndex
+                 Username           = $TxtUsername.Text
+                 Password           = $TxtPassword.Text
+                 UseBuiltInAdmin    = $useAdmin
++                SystemLanguage     = $systemLanguage
+                 ApplyRegionPolicy  = $applyRegionPolicy
+                 DisableUCPD        = $disableUCPD
+                 BypassTPM          = $bypassTPM

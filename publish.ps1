@@ -23,7 +23,6 @@ $MountDir = "$WorkspacePath\build\mount"
 $ExtractDir = "$WorkspacePath\build\extracted_iso"
 $FrozenToolsDir = "$WorkspacePath\frozen_tools"
 $ManifestPath = "$WorkspacePath\tools\tools_manifest.json"
-$AdkOcdir = "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Windows Preinstallation Environment\amd64\WinPE_OCs"
 $FinalIsoPath = "$WorkspacePath\output\Sovereign_WinPE.iso"
 
 if (Test-Path $FinalIsoPath) {
@@ -45,11 +44,43 @@ if (Test-Path $ManifestPath) {
             continue
         }
 
-        Write-Host "Downloading $($tool.name) directly from $($tool.download_url)..."
+        $url = $null
+        if ($tool.github_repo) {
+            Write-Host "Resolving latest release of $($tool.name) via GitHub API..."
+            try {
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                $headers = @{ "User-Agent" = "SovereignDeploy-Pipeline" }
+                $releaseUrl = "https://api.github.com/repos/$($tool.github_repo)/releases/latest"
+                $releaseInfo = Invoke-RestMethod -Uri $releaseUrl -Headers $headers -ErrorAction Stop
+                
+                $matchAsset = $releaseInfo.assets | Where-Object { $_.name -match $tool.asset_pattern } | Select-Object -First 1
+                if ($matchAsset) {
+                    $url = $matchAsset.browser_download_url
+                    $tool.asset_name = $matchAsset.name
+                    Write-Host "  -> Found latest asset: $($matchAsset.name)"
+                }
+                else {
+                    Write-Warning "Could not find asset matching pattern $($tool.asset_pattern) in repository $($tool.github_repo)!"
+                }
+            }
+            catch {
+                Write-Warning "GitHub API query failed for $($tool.name): $($_.Exception.Message)"
+            }
+        }
+        else {
+            $url = $tool.download_url
+        }
+
+        if (-not $url) {
+            Write-Host "WARNING: Failed to resolve download URL for $($tool.name). Falling back to frozen cache if available." -ForegroundColor Yellow
+            continue
+        }
+
+        Write-Host "Downloading $($tool.name) from $url..."
         $OutFile = "$FrozenToolsDir\$($tool.asset_name)"
         
         try {
-            Invoke-WebRequest -Uri $tool.download_url -OutFile $OutFile -ErrorAction Stop
+            Invoke-WebRequest -Uri $url -OutFile $OutFile -ErrorAction Stop
             
             if ($tool.extract) {
                 Write-Host "Extracting $($tool.name)..."
@@ -127,8 +158,8 @@ Set-ItemProperty -Path $localWim -Name IsReadOnly -Value $false
 Write-Host "Unmounting ISO..."
 Dismount-DiskImage -ImagePath $IsoPath | Out-Null
 
-# 4. MOUNT WIM & INJECT OPTIONAL COMPONENTS
-Write-Host "`n>>> STEP 4: Mounting WinPE and Injecting Optional Components..." -ForegroundColor Cyan
+# 4. MOUNT WIM
+Write-Host "`n>>> STEP 4: Mounting WinPE Image..." -ForegroundColor Cyan
 if (Test-Path $MountDir) {
     Write-Host "Cleaning up old mount directory..."
     Remove-Item -Path $MountDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -136,28 +167,6 @@ if (Test-Path $MountDir) {
 New-Item -ItemType Directory -Path $MountDir -Force | Out-Null
 
 dism.exe /Mount-Wim /WimFile:$localWim /Index:2 /MountDir:$MountDir
-
-Write-Host "Injecting WinPE Optional Components (NetFX, PowerShell, etc)..."
-if (Test-Path $AdkOcdir) {
-    # Inject standard components required for PowerShell
-    $ocs = @("WinPE-WMI.cab", "en-us\WinPE-WMI_en-us.cab", 
-        "WinPE-NetFX.cab", "en-us\WinPE-NetFX_en-us.cab",
-        "WinPE-Scripting.cab", "en-us\WinPE-Scripting_en-us.cab",
-        "WinPE-PowerShell.cab", "en-us\WinPE-PowerShell_en-us.cab")
-
-    foreach ($oc in $ocs) {
-        $cabPath = Join-Path $AdkOcdir $oc
-        if (Test-Path $cabPath) {
-            dism.exe /Image:$MountDir /Add-Package /PackagePath:$cabPath
-        }
-        else {
-            Write-Warning "Could not find ADK Optional Component: $cabPath"
-        }
-    }
-}
-else {
-    Write-Warning "Windows ADK WinPE Add-on is not installed on this machine (missing $AdkOcdir). Skipping WinPE Optional Component injection. WPF applications may not render correctly without WinPE-NetFX!"
-}
 
 # 5. INJECT CUSTOM PAYLOADS
 Write-Host "`n>>> STEP 5: Injecting Sovereign Payload..." -ForegroundColor Cyan

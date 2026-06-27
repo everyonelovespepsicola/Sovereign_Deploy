@@ -245,6 +245,7 @@
                                 <ColumnDefinition Width="150"/>
                         </Grid.ColumnDefinitions>
 
+                        <!-- Row 0: ISO Path and Built-in Admin Checkbox -->
                         <TextBlock Text="ISO Path:"
                                    Foreground="#F1F1F1"
                                    VerticalAlignment="Center"
@@ -255,7 +256,6 @@
                                  VerticalAlignment="Center"
                                  Height="25"
                                  Margin="0,0,5,0"/>
-
                         <Button Name="BtnBrowseWim"
                                 Grid.Column="2"
                                 Content="..."
@@ -263,29 +263,15 @@
                                 Height="25"
                                 Margin="0,0,15,0"/>
 
-                        <TextBlock Text="Admin User:"
-                                   Grid.Column="3"
-                                   Foreground="#F1F1F1"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,10,0"/>
-                        <TextBox Name="TxtUsername"
-                                 Grid.Column="4"
-                                 Text="SovereignAdmin"
-                                 VerticalAlignment="Center"
-                                 Height="25"
-                                 Margin="0,0,15,0"/>
+                        <CheckBox Name="ChkBuiltInAdmin"
+                                  Grid.Row="0"
+                                  Grid.Column="3"
+                                  Grid.ColumnSpan="4"
+                                  Content="Use Built-in Administrator Account"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,0,0"/>
 
-                        <TextBlock Text="Password:"
-                                   Grid.Column="5"
-                                   Foreground="#F1F1F1"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,10,0"/>
-                        <TextBox Name="TxtPassword"
-                                 Grid.Column="6"
-                                 Text="Password123"
-                                 VerticalAlignment="Center"
-                                 Height="25"/>
-
+                        <!-- Row 1: Edition Index, Admin User, Password -->
                         <TextBlock Grid.Row="1"
                                    Text="Edition Index:"
                                    Foreground="#F1F1F1"
@@ -310,6 +296,35 @@
                                         Margin="5,0,0,0"/>
                         </Grid>
 
+                        <TextBlock Grid.Row="1"
+                                   Grid.Column="3"
+                                   Text="Admin User:"
+                                   Foreground="#F1F1F1"
+                                   VerticalAlignment="Center"
+                                   Margin="0,10,10,0"/>
+                        <TextBox Name="TxtUsername"
+                                 Grid.Row="1"
+                                 Grid.Column="4"
+                                 Text="SovereignAdmin"
+                                 VerticalAlignment="Center"
+                                 Height="25"
+                                 Margin="0,10,15,0"/>
+
+                        <TextBlock Grid.Row="1"
+                                   Grid.Column="5"
+                                   Text="Password:"
+                                   Foreground="#F1F1F1"
+                                   VerticalAlignment="Center"
+                                   Margin="0,10,10,0"/>
+                        <TextBox Name="TxtPassword"
+                                 Grid.Row="1"
+                                 Grid.Column="6"
+                                 Text="Password123"
+                                 VerticalAlignment="Center"
+                                 Margin="0,10,0,0"
+                                 Height="25"/>
+
+                        <!-- Row 2: Download ISO Link and Language Selection -->
                         <TextBlock Grid.Row="2"
                                    Grid.Column="1"
                                    Margin="0,10,0,0"
@@ -321,12 +336,26 @@
                                 </Hyperlink>
                         </TextBlock>
 
-                        <CheckBox Name="ChkBuiltInAdmin"
+                        <TextBlock Grid.Row="2"
+                                   Grid.Column="3"
+                                   Text="Language:"
+                                   Foreground="#F1F1F1"
+                                   VerticalAlignment="Center"
+                                   Margin="0,10,10,0"/>
+                        <ComboBox Name="CmbLanguage"
                                   Grid.Row="2"
-                                  Grid.Column="3"
-                                  Grid.ColumnSpan="4"
-                                  Content="Use Built-in Administrator Account"
-                                  Margin="0,10,0,0"/>
+                                  Grid.Column="4"
+                                  Grid.ColumnSpan="3"
+                                  VerticalAlignment="Center"
+                                  Height="25"
+                                  Margin="0,10,0,0">
+                                <ComboBoxItem Content="en-US (English - US)" IsSelected="True"/>
+                                <ComboBoxItem Content="en-GB (English - UK)"/>
+                                <ComboBoxItem Content="es-ES (Spanish)"/>
+                                <ComboBoxItem Content="fr-FR (French)"/>
+                                <ComboBoxItem Content="de-DE (German)"/>
+                                <ComboBoxItem Content="ja-JP (Japanese)"/>
+                        </ComboBox>
                 </Grid>
 
                 <!-- Tools Area -->

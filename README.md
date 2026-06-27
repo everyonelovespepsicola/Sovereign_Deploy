@@ -68,8 +68,7 @@ Core capabilities in both modes:
 - On first boot: drops you directly to a clean, configured Sovereign OS desktop — zero OOBE interaction
 
 #### Prerequisites
-- Windows ADK with WinPE Add-on installed
-- .NET 8 SDK
+- **.NET 8 SDK**
 - A vanilla Windows 11 ISO at `input\windows.iso`
 - A USB drive with [Ventoy](https://www.ventoy.net/) installed, **or** a VM
 
@@ -144,6 +143,10 @@ A success dialog appears. Reboot — Windows boots directly to your configured d
 - Executes the nuclear filesystem scanner to obliterate Edge/Copilot/Defender directories
 - Wipes Start Menu cache and deploys the Ghost Buster cleanup script
 - Optionally injects an `unattend.xml` + triggers Sysprep to re-run OOBE under your new account (see Scenario 3 for standalone OOBE bypass)
+
+> [!NOTE]
+> **Expected DISM Servicing Warning:** 
+> If a user has already logged into the Windows partition you are tweaking, DISM may output the warning: `"This image cannot be serviced on an offline image after a user has logged into the image"`. This is normal and expected. The Sovereign Tweaker uses DISM primarily to discover packages and then deletes the directories and targets manually through custom cleanup heuristics and the Ghost Buster startup payload. You can safely ignore this error.
 
 #### Step-by-Step Walkthrough
 

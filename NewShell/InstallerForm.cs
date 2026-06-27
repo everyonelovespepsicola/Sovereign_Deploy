@@ -23,6 +23,7 @@ namespace CustomShell
         private Label statusLabel;
         private Label titleLabel;
         private TextBox logBox;
+        private ComboBox languageCombo;
         
         // NTLight GUI Elements
         private CheckedListBox packageList;
@@ -99,12 +100,20 @@ namespace CustomShell
             Label driverLabel = new Label() { Text = "2. Select Drivers Folder (Optional):", Location = new Point(50, 200), AutoSize = true, Font = new Font("Segoe UI", 12), Visible = !isDebloatMode };
             this.Controls.Add(driverLabel);
 
-            driverPathBox = new TextBox() { Location = new Point(50, 225), Size = new Size(600, 30), Font = new Font("Segoe UI", 12), ReadOnly = true, Visible = !isDebloatMode };
+            driverPathBox = new TextBox() { Location = new Point(50, 225), Size = new Size(320, 30), Font = new Font("Segoe UI", 12), ReadOnly = true, Visible = !isDebloatMode };
             this.Controls.Add(driverPathBox);
 
-            browseDriverBtn = new Button() { Text = "Browse...", Location = new Point(660, 225), Size = new Size(90, 30), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(40, 40, 40), Visible = !isDebloatMode };
+            browseDriverBtn = new Button() { Text = "Browse...", Location = new Point(380, 225), Size = new Size(90, 30), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(40, 40, 40), Visible = !isDebloatMode };
             browseDriverBtn.Click += BrowseDriverBtn_Click;
             this.Controls.Add(browseDriverBtn);
+
+            Label langLabel = new Label() { Text = "Language:", Location = new Point(480, 200), AutoSize = true, Font = new Font("Segoe UI", 12), Visible = !isDebloatMode };
+            this.Controls.Add(langLabel);
+
+            languageCombo = new ComboBox() { Location = new Point(480, 225), Size = new Size(270, 30), Font = new Font("Segoe UI", 12), DropDownStyle = ComboBoxStyle.DropDownList, Visible = !isDebloatMode };
+            languageCombo.Items.AddRange(new string[] { "en-US (English - US)", "en-GB (English - UK)", "es-ES (Spanish)", "fr-FR (French)", "de-DE (German)", "ja-JP (Japanese)" });
+            if (languageCombo.Items.Count > 0) languageCombo.SelectedIndex = 0;
+            this.Controls.Add(languageCombo);
 
             if (isDebloatMode) {
                 bypassOobeBox = new CheckBox() { 
@@ -148,8 +157,8 @@ namespace CustomShell
                     bool enabled = bypassOobeBox.Checked;
                     userLabel.Enabled = enabled;
                     userBox.Enabled = enabled && !builtinAdminBox.Checked;
-                    passLabel.Enabled = enabled && !builtinAdminBox.Checked;
-                    passBox.Enabled = enabled && !builtinAdminBox.Checked;
+                    passLabel.Enabled = enabled;
+                    passBox.Enabled = enabled;
                     pcLabel.Enabled = enabled;
                     pcBox.Enabled = enabled;
                     builtinAdminBox.Enabled = enabled;
@@ -159,7 +168,6 @@ namespace CustomShell
             builtinAdminBox.CheckedChanged += (s, ev) => {
                 if (isDebloatMode && (bypassOobeBox == null || !bypassOobeBox.Checked)) return;
                 userBox.Enabled = !builtinAdminBox.Checked;
-                passBox.Enabled = !builtinAdminBox.Checked;
             };
             this.Controls.Add(builtinAdminBox);
 
@@ -329,7 +337,7 @@ namespace CustomShell
                     }
                 }
                 
-                await Task.Run(() => RunDeploymentPipeline("", "", "", uname, pass, pc, useBuiltInAccount, 1, injectUnattend));
+                await Task.Run(() => RunDeploymentPipeline("", "", "", uname, pass, pc, useBuiltInAccount, 1, injectUnattend, "en-US"));
                 
                 deployBtn.Enabled = true;
                 targetDriveComboBox.Enabled = true;
@@ -374,7 +382,12 @@ namespace CustomShell
                 editionIndex = int.Parse(editionCombo.SelectedItem.ToString().Split(' ')[1]);
             }
 
-            await Task.Run(() => RunDeploymentPipeline(diskIndex, mediaPath, driverPath, username, password, pcname, useBuiltIn, editionIndex, true));
+            string selectedLang = "en-US";
+            if (!isDebloatMode && languageCombo.SelectedIndex != -1) {
+                selectedLang = languageCombo.SelectedItem.ToString().Split(' ')[0];
+            }
+
+            await Task.Run(() => RunDeploymentPipeline(diskIndex, mediaPath, driverPath, username, password, pcname, useBuiltIn, editionIndex, true, selectedLang));
 
             deployBtn.Enabled = true;
             browseBtn.Enabled = true;
@@ -382,7 +395,7 @@ namespace CustomShell
             diskCombo.Enabled = true;
         }
 
-        private async Task RunDeploymentPipeline(string diskIndex, string mediaPath, string driverPath, string username, string password, string pcname, bool useBuiltIn, int editionIndex, bool injectUnattend)
+        private async Task RunDeploymentPipeline(string diskIndex, string mediaPath, string driverPath, string username, string password, string pcname, bool useBuiltIn, int editionIndex, bool injectUnattend, string language)
         {
             try
             {
@@ -877,12 +890,29 @@ exit";
 
                     string unattendXml = $@"<?xml version=""1.0"" encoding=""utf-8""?>
 <unattend xmlns=""urn:schemas-microsoft-com:unattend"" xmlns:wcm=""http://schemas.microsoft.com/WMIConfig/2002/State"">
+    <settings pass=""windowsPE"">
+        <component name=""Microsoft-Windows-International-Core-WinPE"" processorArchitecture=""amd64"" publicKeyToken=""31bf3856ad364e35"" language=""neutral"" versionScope=""nonSxS"">
+            <SetupUILanguage>
+                <UILanguage>{language}</UILanguage>
+            </SetupUILanguage>
+            <InputLocale>{language}</InputLocale>
+            <SystemLocale>{language}</SystemLocale>
+            <UILanguage>{language}</UILanguage>
+            <UserLocale>{language}</UserLocale>
+        </component>
+    </settings>
     <settings pass=""specialize"">
         <component name=""Microsoft-Windows-Shell-Setup"" processorArchitecture=""amd64"" publicKeyToken=""31bf3856ad364e35"" language=""neutral"" versionScope=""nonSxS"">
             <ComputerName>{pcnameOutput}</ComputerName>
         </component>
     </settings>
     <settings pass=""oobeSystem"">
+        <component name=""Microsoft-Windows-International-Core"" processorArchitecture=""amd64"" publicKeyToken=""31bf3856ad364e35"" language=""neutral"" versionScope=""nonSxS"">
+            <InputLocale>{language}</InputLocale>
+            <SystemLocale>{language}</SystemLocale>
+            <UILanguage>{language}</UILanguage>
+            <UserLocale>{language}</UserLocale>
+        </component>
         <component name=""Microsoft-Windows-Shell-Setup"" processorArchitecture=""amd64"" publicKeyToken=""31bf3856ad364e35"" language=""neutral"" versionScope=""nonSxS"">{userAccountsBlock}
 {autoLogonBlock}
             <OOBE>
@@ -932,9 +962,7 @@ exit";
                     if (isDebloatMode) {
                         scriptReg += "reg add HKLM\\zSYSTEM\\Setup /v CmdLine /t REG_SZ /d \"cmd.exe /c C:\\Windows\\Setup\\Scripts\\SovereignSysprep.cmd\" /f\r\n";
                     } else {
-                        scriptReg += "reg add HKLM\\zSYSTEM\\Setup /v OOBEInProgress /t REG_DWORD /d 0 /f\r\n" +
-                                     "reg add HKLM\\zSYSTEM\\Setup /v SetupPhase /t REG_DWORD /d 0 /f\r\n" +
-                                     "reg add HKLM\\zSYSTEM\\Setup /v CmdLine /t REG_SZ /d \"oobe\\windeploy.exe\" /f\r\n";
+                        scriptReg += "reg add HKLM\\zSYSTEM\\Setup /v CmdLine /t REG_SZ /d \"oobe\\windeploy.exe\" /f\r\n";
                     }
                     
                     scriptReg += "reg unload HKLM\\zSYSTEM\r\n";
