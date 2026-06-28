@@ -14,13 +14,13 @@ namespace CustomShell
             this.FormBorderStyle = FormBorderStyle.None;
             this.TopMost = true;
             this.BackColor = Color.FromArgb(45, 45, 45);
-            this.Size = new Size(300, 610);
+            this.Size = new Size(300, 680);
             this.StartPosition = FormStartPosition.Manual;
             this.ShowInTaskbar = false;
 
             Label title = new Label();
             title.Text = "Sovereign Menu";
-            title.Font = new Font("Segoe UI", 16, FontStyle.Bold);
+            title.Font = new Font("Segoe UI Semibold", 16, FontStyle.Regular);
             title.ForeColor = Color.White;
             title.Location = new Point(20, 20);
             title.AutoSize = true;
@@ -29,7 +29,7 @@ namespace CustomShell
             // The massive Sovereign Deploy button
             Button deployBtn = new Button();
             deployBtn.Text = "SOVEREIGN DEPLOY";
-            deployBtn.Font = new Font("Segoe UI", 14, FontStyle.Bold);
+            deployBtn.Font = new Font("Segoe UI Semibold", 14, FontStyle.Bold);
             deployBtn.FlatStyle = FlatStyle.Flat;
             deployBtn.FlatAppearance.BorderSize = 0;
             deployBtn.BackColor = Color.FromArgb(180, 0, 0); // Red
@@ -43,14 +43,15 @@ namespace CustomShell
                     MessageBox.Show("Deployment mode is strictly locked to the WinPE environment to prevent accidental data loss.\n\nPlease boot from the Sovereign_WinPE.iso to deploy.", "CRITICAL ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
-                new InstallerForm().Show(); 
+                new InstallerForm(DeployScenario.CleanInstall).Show(); 
                 this.Hide(); 
             };
+            SetRoundedRegion(deployBtn, 10);
             this.Controls.Add(deployBtn);
 
             Button tweakBtn = new Button();
             tweakBtn.Text = "SOVEREIGN TWEAKER";
-            tweakBtn.Font = new Font("Segoe UI", 12, FontStyle.Bold);
+            tweakBtn.Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold);
             tweakBtn.FlatStyle = FlatStyle.Flat;
             tweakBtn.FlatAppearance.BorderSize = 0;
             tweakBtn.BackColor = Color.FromArgb(0, 120, 215); // Blue
@@ -58,16 +59,34 @@ namespace CustomShell
             tweakBtn.Size = new Size(260, 40);
             tweakBtn.Location = new Point(20, 120);
             tweakBtn.Click += (s, e) => { 
-                new InstallerForm(true).Show(); 
+                new InstallerForm(DeployScenario.OfflineTweaker).Show(); 
                 this.Hide(); 
             };
+            SetRoundedRegion(tweakBtn, 10);
             this.Controls.Add(tweakBtn);
 
-            int startY = 175;
+            Button oobeBtn = new Button();
+            oobeBtn.Text = "OEM OOBE BYPASS";
+            oobeBtn.Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold);
+            oobeBtn.FlatStyle = FlatStyle.Flat;
+            oobeBtn.FlatAppearance.BorderSize = 0;
+            oobeBtn.BackColor = Color.FromArgb(0, 150, 136); // Teal
+            oobeBtn.ForeColor = Color.White;
+            oobeBtn.Size = new Size(260, 40);
+            oobeBtn.Location = new Point(20, 170);
+            oobeBtn.Click += (s, e) => { 
+                new InstallerForm(DeployScenario.OobeBypass).Show(); 
+                this.Hide(); 
+            };
+            SetRoundedRegion(oobeBtn, 10);
+            this.Controls.Add(oobeBtn);
+
+            int startY = 220;
+            int step = 56;
             AddAppButton("Explorer++", "Launch File Explorer", startY, () => LaunchApp("Explorer++\\Explorer++.exe"));
-            AddAppButton("MBR-Deep Search", "Ultra-Fast MFT File Scanner", startY + 50, () => LaunchApp("MBR-Deep\\MBR-Deep-Classic.exe"));
-            AddAppButton("AOMEI Partition", "Manage Disks", startY + 100, () => LaunchApp("AOMEI\\x64\\PartAssist.exe"));
-            AddAppButton("Dism++", "System Deployment", startY + 150, () => LaunchApp("Dism++\\Dism++x64.exe"));
+            AddAppButton("MBR-Deep Search", "Ultra-Fast MFT File Scanner", startY + step, () => LaunchApp("MBR-Deep\\MBR-Deep-Classic.exe"));
+            AddAppButton("DiskGenius", "Partition & Data Recovery", startY + (step * 2), () => LaunchApp("DiskGenius\\DiskGenius.exe"));
+            AddAppButton("Dism++", "System Deployment", startY + (step * 3), () => LaunchApp("Dism++\\Dism++x64.exe"));
             ContextMenuStrip sysToolsMenu = new ContextMenuStrip();
             sysToolsMenu.Items.Add("Command Prompt", null, (s, e) => { this.Hide(); LaunchApp("cmd.exe", true); });
             sysToolsMenu.Items.Add("Notepad", null, (s, e) => { this.Hide(); LaunchApp("notepad.exe", true); });
@@ -103,28 +122,42 @@ namespace CustomShell
                 }
             });
 
-            AddAppButton("System Tools", "Native Windows Utilities (Folder)", startY + 200, () => {
+            AddAppButton("System Tools", "Native Windows Utilities (Folder)", startY + (step * 4), () => {
                 sysToolsMenu.Show(Cursor.Position);
             }, false);
 
-            AddAppButton("NTPWEdit", "Password Reset Tool", startY + 250, () => LaunchApp("NTPWEdit\\ntpwedit64.exe"));
-            AddAppButton("Reboot", "Restart WinPE", startY + 300, () => LaunchApp("wpeutil", true, "reboot"));
-            AddAppButton("Shutdown", "Power Off", startY + 350, () => LaunchApp("wpeutil", true, "shutdown"));
+            AddAppButton("NTPWEdit", "Password Reset Tool", startY + (step * 5), () => LaunchApp("NTPWEdit\\ntpwedit64.exe"));
+            AddAppButton("Reboot", "Restart WinPE", startY + (step * 6), () => LaunchApp("wpeutil", true, "reboot"));
+            AddAppButton("Shutdown", "Power Off", startY + (step * 7), () => LaunchApp("wpeutil", true, "shutdown"));
+            
+            SetRoundedRegion(this, 15);
+        }
+
+        private void SetRoundedRegion(Control control, int radius)
+        {
+            System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath();
+            path.AddArc(0, 0, radius, radius, 180, 90);
+            path.AddArc(control.Width - radius, 0, radius, radius, 270, 90);
+            path.AddArc(control.Width - radius, control.Height - radius, radius, radius, 0, 90);
+            path.AddArc(0, control.Height - radius, radius, radius, 90, 90);
+            path.CloseFigure();
+            control.Region = new Region(path);
         }
 
         private void AddAppButton(string text, string subText, int yPos, Action onClick, bool autoHide = true)
         {
             Button btn = new Button();
             btn.Text = text + "\n" + subText;
-            btn.Font = new Font("Segoe UI", 10, FontStyle.Regular);
-            btn.TextAlign = ContentAlignment.MiddleLeft;
+            btn.Font = new Font("Segoe UI Semibold", 11, FontStyle.Regular);
+            btn.TextAlign = ContentAlignment.MiddleCenter;
             btn.FlatStyle = FlatStyle.Flat;
             btn.FlatAppearance.BorderSize = 0;
             btn.BackColor = Color.FromArgb(60, 60, 60);
             btn.ForeColor = Color.White;
-            btn.Size = new Size(280, 45);
+            btn.Size = new Size(280, 50);
             btn.Location = new Point(10, yPos);
             btn.Cursor = Cursors.Hand;
+            SetRoundedRegion(btn, 10);
             
             btn.Click += (s, e) => {
                 if (autoHide) this.Hide();

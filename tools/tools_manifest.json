@@ -45,6 +45,13 @@
       "asset_name": "WindowsUpdaterGUI.ps1",
       "extract": false,
       "exe_name": "WindowsUpdaterGUI.ps1"
+    },
+    {
+      "name": "DiskGenius",
+      "download_url": "https://www.diskgenius.com/dyna_download/?software=DGEng6201829_x64.zip",
+      "asset_name": "DGEng6201829_x64.zip",
+      "extract": true,
+      "exe_name": "DiskGenius.exe"
     }
   ]
 }

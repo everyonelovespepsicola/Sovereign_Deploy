@@ -1,5 +1,7 @@
 # Sovereign OS Deployment Pipeline
 
+![Processes](assets/Processes.png)
+
 Sovereign OS is a radically debloated, fully automated Windows 11 deployment ecosystem. It completely replaces the standard Windows Setup with a custom .NET 8 WinPE (Windows Preinstallation Environment) GUI, allowing for deep system-level tweaks, offline registry modifications, native unattended user creation, and hardcore debloating *before* the OS ever boots.
 
 ---

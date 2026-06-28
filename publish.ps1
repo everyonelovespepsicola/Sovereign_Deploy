@@ -87,6 +87,12 @@ if (Test-Path $ManifestPath) {
                 if (-not (Test-Path $TargetDir)) { New-Item -ItemType Directory -Path $TargetDir | Out-Null }
                 Expand-Archive -Path $OutFile -DestinationPath $TargetDir -Force
                 Remove-Item $OutFile -Force
+                
+                # Flatten double-nesting if zip contained a folder matching the tool name
+                if (Test-Path "$TargetDir\$($tool.name)") {
+                    Move-Item -Path "$TargetDir\$($tool.name)\*" -Destination $TargetDir -Force
+                    Remove-Item "$TargetDir\$($tool.name)" -Recurse -Force
+                }
             }
             elseif ($tool.inno_extract) {
                 Write-Host "Extracting $($tool.name) using innoextract..."
@@ -115,6 +121,19 @@ if (Test-Path $ManifestPath) {
                 Move-Item -Path $OutFile -Destination $DestFile -Force
             }
             Write-Host "[+] Successfully fetched $($tool.name)!" -ForegroundColor Green
+            if ($tool.name -eq "DiskGenius") {
+                Write-Host "Locating 64-bit oledlg.dll dependency in WinSxS..."
+                $OledlgPath = (Get-ChildItem -Path "C:\Windows\WinSxS" -Filter "oledlg.dll" -Recurse -ErrorAction SilentlyContinue | 
+                    Where-Object { $_.FullName -like "*amd64_*" -and $_.FullName -notlike "*\r\*" } | 
+                    Select-Object -First 1).FullName
+                
+                if ($OledlgPath -and (Test-Path $OledlgPath)) {
+                    Write-Host "Copying oledlg.dll from $OledlgPath..."
+                    Copy-Item -Path $OledlgPath -Destination $TargetDir -Force
+                } else {
+                    Write-Warning "Could not find a 64-bit oledlg.dll in WinSxS!"
+                }
+            }
         }
         catch {
             Write-Host "WARNING: Failed to download $($tool.name). Falling back to frozen cache if available." -ForegroundColor Yellow
