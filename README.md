@@ -51,6 +51,47 @@ Core capabilities in both modes:
 
 ---
 
+## 📀 Ventoy & Secure Boot
+
+Using Ventoy is the recommended way to boot the custom Sovereign WinPE ISO. However, Secure Boot and TPM can create friction during the boot process.
+
+> [!TIP]
+> **Recommended Approach:** Disable Secure Boot temporarily during the deployment process. Since the Sovereign installer bypasses the standard Windows Setup, it doesn't require Secure Boot to be enabled to complete the installation. You can easily re-enable Secure Boot in your BIOS/UEFI once the OS is fully installed.
+
+### 🔓 Recommended: Disabling Secure Boot
+Disabling Secure Boot bypasses all key-enrollment prompts and guarantees a smooth Ventoy boot.
+
+1. **Enter UEFI/BIOS:** Turn on the target PC and repeatedly press the BIOS key (usually `Del`, `F2`, `F12`, or `Esc`).
+2. **Locate Secure Boot:** Navigate to the **Security**, **Boot**, or **System Configuration** tab.
+3. **Disable:** Change **Secure Boot** from *Enabled* to *Disabled*.
+4. **Save & Exit:** Press `F10` (or select Save & Exit) to reboot. You can now boot directly into your Ventoy USB.
+
+---
+
+### 🛡️ Alternative: Booting with Secure Boot Enabled (MOK Enrollment)
+If you must keep Secure Boot enabled during deployment, you will need to enroll Ventoy's signature key into your motherboard's database. This is **not recommended** for quick/bulk deployments as it requires manual steps on every new motherboard.
+
+#### Step 1: Enable Secure Boot Support in Ventoy
+Before copying the ISOs, make sure your Ventoy USB is formatted with Secure Boot support:
+1. Open the **Ventoy2Disk** utility on your technician PC.
+2. Click **Option** in the top menu bar.
+3. Ensure **Secure Boot Support** is checked (enabled by default in newer versions).
+4. Install/Update Ventoy on your USB drive.
+
+#### Step 2: Enroll the MOK (Machine Owner Key) on First Boot
+When you boot the target PC from the Ventoy USB with Secure Boot enabled, you will be greeted by a blue screen saying `Verification failed: (0x1A) Security Violation` or `No Shim Signature`. Follow these steps to register the key:
+
+1. Press **Enter** on the blue warning screen to enter the **Shim UEFI Key Management** menu (blue GUI).
+2. Select **Enroll key from disk** and press Enter.
+3. Select the partition named **VTOYEFI** (this is Ventoy's system partition).
+4. Navigate to and select **`ENROLL_KEY_IN_MOK_VALE.cer`** (in some BIOS versions, this may show as a `.auth` file or direct key).
+5. Select **Continue**, then choose **Yes** to confirm the enrollment.
+6. Select **Reboot** to restart the machine. 
+
+On the next boot, Ventoy (and the `Sovereign_WinPE.iso`) will load cleanly with Secure Boot active.
+
+---
+
 ## 🎯 Three Deployment Scenarios
 
 ---
